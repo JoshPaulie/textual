@@ -80,12 +80,15 @@ class Input(Widget, can_focus=True):
 
     BINDINGS = [
         Binding("left", "cursor_left", "cursor left", show=False),
+        Binding("ctrl+left", "cursor_left_hop_word", "cursor left hop word", show=False),
         Binding("right", "cursor_right", "cursor right", show=False),
+        Binding("ctrl+right", "cursor_right_hop_word", "cursor right hop word", show=False),
         Binding("backspace", "delete_left", "delete left", show=False),
         Binding("home", "home", "home", show=False),
         Binding("end", "end", "end", show=False),
         Binding("ctrl+d", "delete_right", "delete right", show=False),
         Binding("enter", "submit", "submit", show=False),
+        Binding("shift+delete", "delete_line", "delete line", show=False),
     ]
 
     COMPONENT_CLASSES = {"input--cursor", "input--placeholder"}
@@ -271,8 +274,37 @@ class Input(Widget, can_focus=True):
     def action_cursor_left(self) -> None:
         self.cursor_position -= 1
 
+    def action_cursor_left_hop_word(self) -> None:
+        value = self.value
+        start_position = self.cursor_position
+        if start_position == 0:
+            # Cursor is at start, so nothing to hop to
+            return
+
+        last_space = value.rfind(" ", 0, start_position - 1)
+        if last_space == -1:
+            # Place cursor at start if no more spaces
+            self.cursor_position = 0
+        else:
+            self.cursor_position = last_space
+
     def action_cursor_right(self) -> None:
         self.cursor_position += 1
+
+    def action_cursor_right_hop_word(self) -> None:
+        value = self.value
+        start_position = self.cursor_position
+
+        if start_position == len(value):
+            # Cursor is at end, so nothing to hop to
+            return
+
+        next_space = value.find(" ", start_position + 1, len(value))
+        if next_space == -1:
+            # Place cursor at end if no more spaces
+            self.cursor_position = len(value)
+        else:
+            self.cursor_position = next_space
 
     def action_home(self) -> None:
         self.cursor_position = 0
@@ -304,6 +336,10 @@ class Input(Widget, can_focus=True):
             after = value[delete_position + 1 :]
             self.value = f"{before}{after}"
             self.cursor_position = delete_position
+
+    def action_delete_line(self) -> None:
+        self.value = ""
+        self.cursor_position = 0
 
     async def action_submit(self) -> None:
         await self.emit(self.Submitted(self, self.value))

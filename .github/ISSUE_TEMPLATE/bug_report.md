@@ -7,6 +7,14 @@ assignees: ''
 
 ---
 
-Textual is currently in active development. I will try to keep the sample functional, but I make no guarantee anything will run right now.
+Have you checked closed issues? https://github.com/Textualize/textual/issues?q=is%3Aissue+is%3Aclosed
 
-Unless this is a blatant bug, you might want to open a discussion for now.
+Please give a brief but clear explanation of the issue. If you can, include a complete working example that demonstrates the bug. **Check it can run without modifications.**
+
+It will be helpful if you run the following command and paste the results:
+
+```
+textual diagnose
+```
+
+Feel free to add screenshots and / or videos. These can be very helpful!

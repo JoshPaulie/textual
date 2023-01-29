@@ -14,10 +14,10 @@ class ScrollView(Widget):
     """
 
     DEFAULT_CSS = """
-    ScrollView {     
+    ScrollView {
         overflow-y: auto;
-        overflow-x: auto;   
-    }    
+        overflow-x: auto;
+    }
     """
 
     @property
@@ -30,6 +30,16 @@ class ScrollView(Widget):
         """Not transparent, i.e. renders something."""
         return False
 
+    def watch_scroll_x(self, new_value: float) -> None:
+        if self.show_horizontal_scrollbar:
+            self.horizontal_scrollbar.position = int(new_value)
+            self.refresh()
+
+    def watch_scroll_y(self, new_value: float) -> None:
+        if self.show_vertical_scrollbar:
+            self.vertical_scrollbar.position = int(new_value)
+            self.refresh()
+
     def on_mount(self):
         self._refresh_scrollbars()
 
@@ -37,11 +47,11 @@ class ScrollView(Widget):
         """Gets the width of the content area.
 
         Args:
-            container (Size): Size of the container (immediate parent) widget.
-            viewport (Size): Size of the viewport.
+            container: Size of the container (immediate parent) widget.
+            viewport: Size of the viewport.
 
         Returns:
-            int: The optimal width of the content.
+            The optimal width of the content.
         """
         return self.virtual_size.width
 
@@ -49,12 +59,12 @@ class ScrollView(Widget):
         """Gets the height (number of lines) in the content area.
 
         Args:
-            container (Size): Size of the container (immediate parent) widget.
-            viewport (Size): Size of the viewport.
-            width (int): Width of renderable.
+            container: Size of the container (immediate parent) widget.
+            viewport: Size of the viewport.
+            width: Width of renderable.
 
         Returns:
-            int: The height of the content.
+            The height of the content.
         """
         return self.virtual_size.height
 
@@ -64,10 +74,12 @@ class ScrollView(Widget):
         """Called when size is updated.
 
         Args:
-            size (Size): New size.
-            virtual_size (Size): New virtual size.
-            container_size (Size): New container size.
+            size: New size.
+            virtual_size: New virtual size.
+            container_size: New container size.
         """
+        if self._size != size or container_size != container_size:
+            self.refresh()
         if (
             self._size != size
             or virtual_size != self.virtual_size
@@ -75,16 +87,15 @@ class ScrollView(Widget):
         ):
             self._size = size
             virtual_size = self.virtual_size
-            self._scroll_update(virtual_size)
             self._container_size = size - self.styles.gutter.totals
+            self._scroll_update(virtual_size)
             self.scroll_to(self.scroll_x, self.scroll_y, animate=False)
-            self.refresh()
 
     def render(self) -> RenderableType:
         """Render the scrollable region (if `render_lines` is not implemented).
 
         Returns:
-            RenderableType: Renderable object.
+            Renderable object.
         """
         from rich.panel import Panel
 

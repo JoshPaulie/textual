@@ -165,7 +165,11 @@ If you click the buttons in the above example it will show the current count. Wh
 
 ## Watch methods
 
-Watch methods are another superpower. Textual will call watch methods when reactive attributes are modified. Watch methods begin with `watch_` followed by the name of the attribute. If the watch method accepts a positional argument, it will be called with the new assigned value. If the watch method accepts *two* positional arguments, it will be called with both the *old* value and the *new* value.
+Watch methods are another superpower.
+Textual will call watch methods when reactive attributes are modified.
+Watch method names begin with `watch_` followed by the name of the attribute, and should accept one or two arguments.
+If the method accepts a single argument, it will be called with the new assigned value.
+If the method accepts *two* positional arguments, it will be called with both the *old* value and the *new* value.
 
 The following app will display any color you type in to the input. Try it with a valid color in Textual CSS. For example `"darkorchid"` or `"#52de44"`.
 
@@ -192,6 +196,12 @@ The following app will display any color you type in to the input. Try it with a
 
 The color is parsed in `on_input_submitted` and assigned to `self.color`. Because `color` is reactive, Textual also calls `watch_color` with the old and new values.
 
+### When are watch methods called?
+
+Textual only calls watch methods if the value of a reactive attribute _changes_.
+If the newly assigned value is the same as the previous value, the watch method is not called.
+You can override this behaviour by passing `always_update=True` to `reactive`.
+
 ## Compute methods
 
 Compute methods are the final superpower offered by the `reactive` descriptor. Textual runs compute methods to calculate the value of a reactive attribute. Compute methods begin with `compute_` followed by the name of the reactive value.
@@ -207,7 +217,7 @@ The following example uses a computed attribute. It displays three inputs for ea
     ```
 
     1. Combines color components in to a Color object.
-    2. The compute method is called when the _result_ of `compute_color` changes.
+    2. The watch method is called when the _result_ of `compute_color` changes.
 
 === "computed01.css"
 

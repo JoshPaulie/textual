@@ -22,12 +22,12 @@ def arrange(
     """Arrange widgets by applying docks and calling layouts
 
     Args:
-        widget (Widget): The parent (container) widget.
-        size (Size): The size of the available area.
-        viewport (Size): The size of the viewport (terminal).
+        widget: The parent (container) widget.
+        size: The size of the available area.
+        viewport: The size of the viewport (terminal).
 
     Returns:
-        tuple[list[WidgetPlacement], set[Widget], Spacing]: Widget arrangement information.
+        Widget arrangement information.
     """
 
     arrange_widgets: set[Widget] = set()
@@ -41,7 +41,6 @@ def arrange(
 
     placements: list[WidgetPlacement] = []
     add_placement = placements.append
-    region = size.region
 
     _WidgetPlacement = WidgetPlacement
     top_z = TOP_Z
@@ -50,7 +49,9 @@ def arrange(
     get_dock = attrgetter("styles.dock")
     styles = widget.styles
 
+    layer_region = size.region
     for widgets in dock_layers.values():
+        region = layer_region
 
         layout_widgets, dock_widgets = partition(get_dock, widgets)
 
@@ -60,10 +61,9 @@ def arrange(
         for dock_widget in dock_widgets:
             edge = dock_widget.styles.dock
 
-            fraction_unit = Fraction(
-                size.height if edge in ("top", "bottom") else size.width
+            box_model = dock_widget._get_box_model(
+                size, viewport, Fraction(size.width), Fraction(size.height)
             )
-            box_model = dock_widget._get_box_model(size, viewport, fraction_unit)
             widget_width_fraction, widget_height_fraction, margin = box_model
 
             widget_width = int(widget_width_fraction) + margin.width

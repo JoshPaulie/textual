@@ -95,7 +95,7 @@ If you run this code, you should see something like the following:
 
 Hit the ++d++ key to toggle between light and dark mode.
 
-```{.textual path="docs/examples/tutorial/stopwatch01.py" press="d" title="TimerApp + dark"}
+```{.textual path="docs/examples/tutorial/stopwatch01.py" press="d" title="StopwatchApp + dark"}
 ```
 
 Hit ++ctrl+c++ to exit the app and return to the command prompt.
@@ -108,7 +108,7 @@ Let's examine `stopwatch01.py` in more detail.
 --8<-- "docs/examples/tutorial/stopwatch01.py"
 ```
 
-The first line imports the Textual `App` class, which we will use as the base class for our App. The second line imports two builtin widgets: `Footer` which shows a bar at the bottom of the screen with current keys, and `Header` which shows a title and the current time at the top of the screen. Widgets are re-usable components responsible for managing a part of the screen. We will cover how to build widgets in this tutorial.
+The first line imports the Textual `App` class, which we will use as the base class for our App. The second line imports two builtin widgets: `Footer` which shows a bar at the bottom of the screen with bound keys, and `Header` which shows a title at the top of the screen. Widgets are re-usable components responsible for managing a part of the screen. We will cover how to build widgets in this tutorial.
 
 The following lines define the app itself:
 
@@ -165,7 +165,7 @@ The Stopwatch widget class also extends `Static`. This class has a `compose()` m
 
 #### The buttons
 
-The Button constructor takes a label to be displayed in the button (`"Start"`, `"Stop"`, or `"Reset"`). Additionally some of the buttons set the following parameters:
+The Button constructor takes a label to be displayed in the button (`"Start"`, `"Stop"`, or `"Reset"`). Additionally, some of the buttons set the following parameters:
 
 - `id` is an identifier we can use to tell the buttons apart in code and apply styles. More on that later.
 - `variant` is a string which selects a default style. The "success" variant makes the button green, and the "error" variant makes it red.
@@ -233,8 +233,9 @@ Stopwatch {
     layout: horizontal;
     background: $boost;
     height: 5;
-    padding: 1;
     margin: 1;
+    min-width: 50;
+    padding: 1;
 }
 ```
 
@@ -249,8 +250,9 @@ Here's how this CSS code changes how the `Stopwatch` widget is displayed.
 - `layout: horizontal` aligns child widgets horizontally from left to right.
 - `background: $boost` sets the background color to `$boost`. The `$` prefix picks a pre-defined color from the builtin theme. There are other ways to specify colors such as `"blue"` or `rgb(20,46,210)`.
 - `height: 5` sets the height of our widget to 5 lines of text.
-- `padding: 1` sets a padding of 1 cell around the child widgets.
 - `margin: 1` sets a margin of 1 cell around the `Stopwatch` widget to create a little space between widgets in the list.
+- `min-width: 50` sets the minimum width of our widget to 50 cells.
+- `padding: 1` sets a padding of 1 cell around the child widgets.
 
 
 Here's the rest of `stopwatch03.css` which contains further declaration blocks:
@@ -288,7 +290,7 @@ The last 3 blocks have a slightly different format. When the declaration begins 
 
 The buttons have a `dock` style which aligns the widget to a given edge. The start and stop buttons are docked to the left edge, while the reset button is docked to the right edge.
 
-You may have noticed that the stop button (`#stop` in the CSS) has `display: none;`. This tells Textual to not show the button. We do this because we don't want to display the stop button when the timer is *not* running. Similarly we don't want to show the start button when the timer is running. We will cover how to manage such dynamic user interfaces in the next section.
+You may have noticed that the stop button (`#stop` in the CSS) has `display: none;`. This tells Textual to not show the button. We do this because we don't want to display the stop button when the timer is *not* running. Similarly, we don't want to show the start button when the timer is running. We will cover how to manage such dynamic user interfaces in the next section.
 
 ### Dynamic CSS
 
@@ -333,7 +335,7 @@ The following code will start or stop the stopwatches in response to clicking a 
 --8<-- "docs/examples/tutorial/stopwatch04.py"
 ```
 
-The `on_button_pressed` method is an *event handler*. Event handlers are methods called by Textual in response to an *event* such as a key press, mouse click, etc. Event handlers begin with `on_` followed by the name of the event they will handler. Hence `on_button_pressed` will handle the button pressed event.
+The `on_button_pressed` method is an *event handler*. Event handlers are methods called by Textual in response to an *event* such as a key press, mouse click, etc. Event handlers begin with `on_` followed by the name of the event they will handle. Hence `on_button_pressed` will handle the button pressed event.
 
 If you run `stopwatch04.py` now you will be able to toggle between the two states by clicking the first button:
 
@@ -363,7 +365,7 @@ The first argument to `reactive` may be a default value or a callable that retur
 The `time` attribute has a simple float as the default value, so `self.time` will be `0` on start.
 
 
-The `on_mount` method is an event handler called then the widget is first added to the application (or _mounted_). In this method we call [set_interval()][textual.message_pump.MessagePump.set_interval] to create a timer which calls `self.update_time` sixty times a second. This `update_time` method calculates the time elapsed since the widget started and assigns it to `self.time`. Which brings us to one of Reactive's super-powers.
+The `on_mount` method is an event handler called when the widget is first added to the application (or _mounted_). In this method we call [set_interval()][textual.message_pump.MessagePump.set_interval] to create a timer which calls `self.update_time` sixty times a second. This `update_time` method calculates the time elapsed since the widget started and assigns it to `self.time`. Which brings us to one of Reactive's super-powers.
 
 If you implement a method that begins with `watch_` followed by the name of a reactive attribute (making it a _watch method_), that method will be called when the attribute is modified.
 
@@ -430,7 +432,7 @@ The Stopwatch app creates widgets when it starts via the `compose` method. We wi
 
 Let's use these methods to implement adding and removing stopwatches to our app.
 
-```python title="stopwatch.py" hl_lines="78-79 88-92 94-98"
+```python title="stopwatch.py" hl_lines="78-79 86 88-92 94-98"
 --8<-- "docs/examples/tutorial/stopwatch.py"
 ```
 

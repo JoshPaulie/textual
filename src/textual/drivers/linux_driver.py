@@ -30,9 +30,14 @@ class LinuxDriver(Driver):
     """Powers display and input for Linux / MacOS"""
 
     def __init__(
-        self, console: "Console", target: "MessageTarget", debug: bool = False
+        self,
+        console: "Console",
+        target: "MessageTarget",
+        *,
+        debug: bool = False,
+        size: tuple[int, int] | None = None,
     ) -> None:
-        super().__init__(console, target, debug)
+        super().__init__(console, target, debug=debug, size=size)
         self.fileno = sys.stdin.fileno()
         self.attrs_before: list[Any] | None = None
         self.exit_event = Event()
@@ -140,9 +145,14 @@ class LinuxDriver(Driver):
         self._request_terminal_sync_mode_support()
         self._enable_bracketed_paste()
 
-    def _request_terminal_sync_mode_support(self):
-        self.console.file.write("\033[?2026$p")
-        self.console.file.flush()
+    def _request_terminal_sync_mode_support(self) -> None:
+        """Writes an escape sequence to query the terminal support for the sync protocol."""
+        # Terminals should ignore this sequence if not supported.
+        # Apple terminal doesn't, and writes a single 'p' in to the terminal,
+        # so we will make a special case for Apple terminal (which doesn't support sync anyway).
+        if self.console._environ.get("TERM_PROGRAM", "") != "Apple_Terminal":
+            self.console.file.write("\033[?2026$p")
+            self.console.file.flush()
 
     @classmethod
     def _patch_lflag(cls, attrs: int) -> int:
@@ -171,6 +181,7 @@ class LinuxDriver(Driver):
                 self.exit_event.set()
                 if self._key_thread is not None:
                     self._key_thread.join()
+                self.exit_event.clear()
                 termios.tcflush(self.fileno, termios.TCIFLUSH)
         except Exception as error:
             # TODO: log this
@@ -231,17 +242,3 @@ class LinuxDriver(Driver):
         finally:
             with timer("selector.close"):
                 selector.close()
-
-
-if __name__ == "__main__":
-    from rich.console import Console
-
-    console = Console()
-
-    from ..app import App
-
-    class MyApp(App):
-        async def on_mount(self, event: events.Mount) -> None:
-            self.set_timer(5, callback=self._close_messages)
-
-    MyApp.run()

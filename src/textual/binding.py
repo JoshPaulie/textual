@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
 from typing import Iterable, MutableMapping
 
 import rich.repr
 
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:  # pragma: no cover
-    from typing_extensions import TypeAlias
+from textual.keys import _character_to_key
+from textual._typing import TypeAlias
 
 BindingType: TypeAlias = "Binding | tuple[str, str, str]"
 
@@ -22,8 +19,14 @@ class NoBinding(Exception):
     """A binding was not found."""
 
 
+class InvalidBinding(Exception):
+    """Binding key is in an invalid format."""
+
+
 @dataclass(frozen=True)
 class Binding:
+    """The configuration of a key binding."""
+
     key: str
     """Key to bind. This can also be a comma-separated list of keys to map multiple keys to a single action."""
     action: str
@@ -34,15 +37,29 @@ class Binding:
     """Show the action in Footer, or False to hide."""
     key_display: str | None = None
     """How the key should be shown in footer."""
-    universal: bool = False
-    """Allow forwarding from app to focused widget."""
+    priority: bool = False
+    """Enable priority binding for this key."""
 
 
 @rich.repr.auto
 class Bindings:
     """Manage a set of bindings."""
 
-    def __init__(self, bindings: Iterable[BindingType] | None = None) -> None:
+    def __init__(
+        self,
+        bindings: Iterable[BindingType] | None = None,
+    ) -> None:
+        """Initialise a collection of bindings.
+
+        Args:
+            bindings: An optional set of initial bindings.
+
+        Note:
+            The iterable of bindings can contain either a `Binding`
+            instance, or a tuple of 3 values mapping to the first three
+            properties of a `Binding`.
+        """
+
         def make_bindings(bindings: Iterable[BindingType]) -> Iterable[Binding]:
             for binding in bindings:
                 # If it's a tuple of length 3, convert into a Binding first
@@ -53,20 +70,25 @@ class Bindings:
                         )
                     binding = Binding(*binding)
 
-                binding_keys = binding.key.split(",")
-                if len(binding_keys) > 1:
-                    for key in binding_keys:
-                        new_binding = Binding(
-                            key=key,
-                            action=binding.action,
-                            description=binding.description,
-                            show=binding.show,
-                            key_display=binding.key_display,
-                            universal=binding.universal,
+                # At this point we have a Binding instance, but the key may
+                # be a list of keys, so now we unroll that single Binding
+                # into a (potential) collection of Binding instances.
+                for key in binding.key.split(","):
+                    key = key.strip()
+                    if not key:
+                        raise InvalidBinding(
+                            f"Can not bind empty string in {binding.key!r}"
                         )
-                        yield new_binding
-                else:
-                    yield binding
+                    if len(key) == 1:
+                        key = _character_to_key(key)
+                    yield Binding(
+                        key=key,
+                        action=binding.action,
+                        description=binding.description,
+                        show=binding.show,
+                        key_display=binding.key_display,
+                        priority=binding.priority,
+                    )
 
         self.keys: MutableMapping[str, Binding] = (
             {binding.key: binding for binding in make_bindings(bindings)}
@@ -79,13 +101,13 @@ class Bindings:
 
     @classmethod
     def merge(cls, bindings: Iterable[Bindings]) -> Bindings:
-        """Merge a bindings. Subsequence bound keys override initial keys.
+        """Merge a bindings. Subsequent bound keys override initial keys.
 
         Args:
-            bindings (Iterable[Bindings]): A number of bindings.
+            bindings: A number of bindings.
 
         Returns:
-            Bindings: New bindings.
+            New bindings.
         """
         keys: dict[str, Binding] = {}
         for _bindings in bindings:
@@ -97,7 +119,7 @@ class Bindings:
         """A list of bindings for shown keys.
 
         Returns:
-            list[Binding]: Shown bindings.
+            Shown bindings.
         """
         keys = [binding for binding in self.keys.values() if binding.show]
         return keys
@@ -109,8 +131,18 @@ class Bindings:
         description: str = "",
         show: bool = True,
         key_display: str | None = None,
-        universal: bool = False,
+        priority: bool = False,
     ) -> None:
+        """Bind keys to an action.
+
+        Args:
+            keys: The keys to bind. Can be a comma-separated list of keys.
+            action: The action to bind the keys to.
+            description: An optional description for the binding.
+            show: A flag to say if the binding should appear in the footer.
+            key_display: Optional string to display in the footer for the key.
+            priority: Is this a priority binding, checked form app down to focused widget?
+        """
         all_keys = [key.strip() for key in keys.split(",")]
         for key in all_keys:
             self.keys[key] = Binding(
@@ -119,20 +151,20 @@ class Bindings:
                 description,
                 show=show,
                 key_display=key_display,
-                universal=universal,
+                priority=priority,
             )
 
     def get_key(self, key: str) -> Binding:
         """Get a binding if it exists.
 
         Args:
-            key (str): Key to look up.
+            key: Key to look up.
 
         Raises:
             NoBinding: If the binding does not exist.
 
         Returns:
-            Binding: A binding object for the key,
+            A binding object for the key,
         """
         try:
             return self.keys[key]

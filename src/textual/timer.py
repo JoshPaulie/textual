@@ -7,21 +7,17 @@ Timer objects are created by [set_interval][textual.message_pump.MessagePump.set
 
 from __future__ import annotations
 
-import asyncio
 import weakref
-from asyncio import (
-    CancelledError,
-    Event,
-    Task,
-)
+from asyncio import CancelledError, Event, Task
 from typing import Awaitable, Callable, Union
 
 from rich.repr import Result, rich_repr
 
-from . import events
+from . import _clock, events
+from ._asyncio import create_task
 from ._callback import invoke
 from ._context import active_app
-from . import _clock
+from ._time import sleep
 from ._types import MessageTarget
 
 TimerCallback = Union[Callable[[], Awaitable[None]], Callable[[], None]]
@@ -36,14 +32,14 @@ class Timer:
     """A class to send timer-based events.
 
     Args:
-        event_target (MessageTarget): The object which will receive the timer events.
-        interval (float): The time between timer events.
-        sender (MessageTarget): The sender of the event.
-        name (str | None, optional): A name to assign the event (for debugging). Defaults to None.
-        callback (TimerCallback | None, optional): A optional callback to invoke when the event is handled. Defaults to None.
-        repeat (int | None, optional): The number of times to repeat the timer, or None to repeat forever. Defaults to None.
-        skip (bool, optional): Enable skipping of scheduled events that couldn't be sent in time. Defaults to True.
-        pause (bool, optional): Start the timer paused. Defaults to False.
+        event_target: The object which will receive the timer events.
+        interval: The time between timer events.
+        sender: The sender of the event.
+        name: A name to assign the event (for debugging). Defaults to None.
+        callback: A optional callback to invoke when the event is handled. Defaults to None.
+        repeat: The number of times to repeat the timer, or None to repeat forever. Defaults to None.
+        skip: Enable skipping of scheduled events that couldn't be sent in time. Defaults to True.
+        pause: Start the timer paused. Defaults to False.
     """
 
     _timer_count: int = 1
@@ -91,9 +87,9 @@ class Timer:
         """Start the timer return the task.
 
         Returns:
-            Task: A Task instance for the timer.
+            A Task instance for the timer.
         """
-        self._task = asyncio.create_task(self._run_timer())
+        self._task = create_task(self._run_timer(), name=self.name)
         return self._task
 
     def stop_no_wait(self) -> None:
@@ -140,6 +136,7 @@ class Timer:
         _interval = self._interval
         await self._active.wait()
         start = _clock.get_time_no_wait()
+
         while _repeat is None or count <= _repeat:
             next_timer = start + ((count + 1) * _interval)
             now = await _clock.get_time()
@@ -148,8 +145,8 @@ class Timer:
                 continue
             now = await _clock.get_time()
             wait_time = max(0, next_timer - now)
-            if wait_time:
-                await _clock.sleep(wait_time)
+            if wait_time > 1 / 1000:
+                await sleep(wait_time)
 
             count += 1
             await self._active.wait()

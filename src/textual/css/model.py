@@ -44,7 +44,6 @@ class Selector:
     type: SelectorType = SelectorType.TYPE
     pseudo_classes: list[str] = field(default_factory=list)
     specificity: Specificity3 = field(default_factory=lambda: (0, 0, 0))
-    _name_lower: str = field(default="", repr=False)
     advance: int = 1
 
     @property
@@ -61,7 +60,6 @@ class Selector:
             return f"#{self.name}{pseudo_suffix}"
 
     def __post_init__(self) -> None:
-        self._name_lower = self.name.lower()
         self._checks = {
             SelectorType.UNIVERSAL: self._check_universal,
             SelectorType.TYPE: self._check_type,
@@ -73,7 +71,7 @@ class Selector:
         """Adds a pseudo class and updates specificity.
 
         Args:
-            pseudo_class (str): Name of pseudo class.
+            pseudo_class: Name of pseudo class.
         """
         self.pseudo_classes.append(pseudo_class)
         specificity1, specificity2, specificity3 = self.specificity
@@ -83,10 +81,10 @@ class Selector:
         """Check if a given node matches the selector.
 
         Args:
-            node (DOMNode): A DOM node.
+            node: A DOM node.
 
         Returns:
-            bool: True if the selector matches, otherwise False.
+            True if the selector matches, otherwise False.
         """
         return self._checks[self.type](node)
 
@@ -94,21 +92,21 @@ class Selector:
         return node.has_pseudo_class(*self.pseudo_classes)
 
     def _check_type(self, node: DOMNode) -> bool:
-        if self._name_lower not in node._css_type_names:
+        if self.name not in node._css_type_names:
             return False
         if self.pseudo_classes and not node.has_pseudo_class(*self.pseudo_classes):
             return False
         return True
 
     def _check_class(self, node: DOMNode) -> bool:
-        if not node.has_class(self._name_lower):
+        if not node.has_class(self.name):
             return False
         if self.pseudo_classes and not node.has_pseudo_class(*self.pseudo_classes):
             return False
         return True
 
     def _check_id(self, node: DOMNode) -> bool:
-        if not node.id == self._name_lower:
+        if not node.id == self.name:
             return False
         if self.pseudo_classes and not node.has_pseudo_class(*self.pseudo_classes):
             return False
@@ -190,7 +188,7 @@ class RuleSet:
         """Generate the CSS this RuleSet
 
         Returns:
-            str: A string containing CSS code.
+            A string containing CSS code.
         """
         declarations = "\n".join(f"    {line}" for line in self.styles.css_lines)
         css = f"{self.selectors} {{\n{declarations}\n}}"

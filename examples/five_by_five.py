@@ -13,7 +13,7 @@ from textual.containers import Horizontal
 from textual.app import App, ComposeResult
 from textual.screen import Screen
 from textual.widget import Widget
-from textual.widgets import Footer, Button, Static
+from textual.widgets import Footer, Button, Label
 from textual.css.query import DOMQuery
 from textual.reactive import reactive
 from textual.binding import Binding
@@ -24,8 +24,8 @@ from rich.markdown import Markdown
 class Help(Screen):
     """The help screen for the application."""
 
-    #: Bindings for the help screen.
     BINDINGS = [("escape,space,q,question_mark", "pop_screen", "Close")]
+    """Bindings for the help screen."""
 
     def compose(self) -> ComposeResult:
         """Compose the game's help.
@@ -33,14 +33,14 @@ class Help(Screen):
         Returns:
             ComposeResult: The result of composing the help screen.
         """
-        yield Static(Markdown(Path(__file__).with_suffix(".md").read_text()))
+        yield Label(Markdown(Path(__file__).with_suffix(".md").read_text()))
 
 
-class WinnerMessage(Static):
+class WinnerMessage(Label):
     """Widget to tell the user they have won."""
 
-    #: The minimum number of moves you can solve the puzzle in.
     MIN_MOVES: Final = 14
+    """int: The minimum number of moves you can solve the puzzle in."""
 
     @staticmethod
     def _plural(value: int) -> str:
@@ -78,11 +78,11 @@ class GameHeader(Widget):
     and the count of how many cells are turned on (``#progress``).
     """
 
-    #: Keep track of how many moves the player has made.
     moves = reactive(0)
+    """int: Keep track of how many moves the player has made."""
 
-    #: Keep track of how many cells are filled.
     filled = reactive(0)
+    """int: Keep track of how many cells are filled."""
 
     def compose(self) -> ComposeResult:
         """Compose the game header.
@@ -91,9 +91,9 @@ class GameHeader(Widget):
             ComposeResult: The result of composing the game header.
         """
         yield Horizontal(
-            Static(self.app.title, id="app-title"),
-            Static(id="moves"),
-            Static(id="progress"),
+            Label(self.app.title, id="app-title"),
+            Label(id="moves"),
+            Label(id="progress"),
         )
 
     def watch_moves(self, moves: int):
@@ -102,7 +102,7 @@ class GameHeader(Widget):
         Args:
             moves (int): The number of moves made.
         """
-        self.query_one("#moves", Static).update(f"Moves: {moves}")
+        self.query_one("#moves", Label).update(f"Moves: {moves}")
 
     def watch_filled(self, filled: int):
         """Watch the on-count reactive and update when it changes.
@@ -110,7 +110,7 @@ class GameHeader(Widget):
         Args:
             filled (int): The number of cells that are currently on.
         """
-        self.query_one("#progress", Static).update(f"Filled: {filled}")
+        self.query_one("#progress", Label).update(f"Filled: {filled}")
 
 
 class GameCell(Button):
@@ -159,10 +159,9 @@ class GameGrid(Widget):
 class Game(Screen):
     """Main 5x5 game grid screen."""
 
-    #: The size of the game grid. Clue's in the name really.
-    SIZE = 5
+    SIZE: Final = 5
+    """The size of the game grid. Clue's in the name really."""
 
-    #: The bindings for the main game grid.
     BINDINGS = [
         Binding("n", "new_game", "New Game"),
         Binding("question_mark", "push_screen('help')", "Help", key_display="?"),
@@ -173,6 +172,7 @@ class Game(Screen):
         Binding("right,d,l", "navigate(0,1)", "Move Right", False),
         Binding("space", "move", "Toggle", False),
     ]
+    """The bindings for the main game grid."""
 
     @property
     def filled_cells(self) -> DOMQuery[GameCell]:
@@ -308,17 +308,17 @@ class Game(Screen):
 class FiveByFive(App[None]):
     """Main 5x5 application class."""
 
-    #: The name of the stylesheet for the app.
     CSS_PATH = "five_by_five.css"
+    """The name of the stylesheet for the app."""
 
-    #: The pre-loaded screens for the application.
-    SCREENS = {"help": Help()}
+    SCREENS = {"help": Help}
+    """The pre-loaded screens for the application."""
 
-    #: App-level bindings.
     BINDINGS = [("ctrl+d", "toggle_dark", "Toggle Dark Mode")]
+    """App-level bindings."""
 
-    # Set the title
     TITLE = "5x5 -- A little annoying puzzle"
+    """The title of the application."""
 
     def on_mount(self) -> None:
         """Set up the application on startup."""

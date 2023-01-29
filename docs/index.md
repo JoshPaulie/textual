@@ -1,11 +1,24 @@
-
 # Introduction
 
-Welcome to the [Textual](https://github.com/Textualize/textual) framework documentation. Built with ❤️ by [Textualize.io](https://www.textualize.io)
+Welcome to the [Textual](https://github.com/Textualize/textual) framework documentation.
 
-<hr>
+!!! tip
 
-Textual is a framework for building applications that run within your terminal. Text User Interfaces (TUIs) have a number of advantages over web and desktop apps.
+    See the navigation links in the header or side-bars. Click the :octicons-three-bars-16: button (top left) on mobile.
+
+
+[Get started](./getting_started.md){ .md-button .md-button--primary } or go straight to the [Tutorial](./tutorial.md)
+
+
+
+## What is Textual?
+
+Textual is a *Rapid Application Development* framework for Python, built by [Textualize.io](https://www.textualize.io).
+
+
+Build sophisticated user interfaces with a simple Python API. Run your apps in the terminal and (*coming soon*) a web browser.
+
+
 
 <div class="grid cards" markdown>
 
@@ -20,9 +33,9 @@ Textual is a framework for building applications that run within your terminal. 
 
     ---
 
-    Low system requirements. Run Textual on a single board computer if you want to.
+    Run Textual on a single board computer if you want to.
 
-  
+
 
 -   :material-microsoft-windows:{ .lg .middle } :material-apple:{ .lg .middle } :fontawesome-brands-linux:{ .lg .middle } __Cross platform__
 
@@ -30,7 +43,7 @@ Textual is a framework for building applications that run within your terminal. 
 
     Textual runs just about everywhere.
 
-    
+
 
 -   :material-network:{ .lg .middle } __Remote__
 
@@ -47,17 +60,15 @@ Textual is a framework for building applications that run within your terminal. 
 
 
 
--   :material-scale-balance:{ .lg .middle } __Open Source, MIT__
+-   :material-scale-balance:{ .lg .middle } __Open Source__
 
     ---
 
     Textual is licensed under MIT.
-    
+
 
 </div>
 
-
-<hr>
 
 
 ```{.textual path="examples/calculator.py" columns=100 lines=41 press="3,.,1,4,5,9,2,_,_,_,_,_,_,_,_"}
@@ -70,7 +81,7 @@ Textual is a framework for building applications that run within your terminal. 
 ```
 
 
-```{.textual path="docs/examples/events/dictionary.py" columns="100" lines="30" press="tab,_,t,e,x,t,_,_,_,_,_,_,_,_,_,_,_,_,_"}
+```{.textual path="docs/examples/events/dictionary.py" columns="100" lines="30" press="tab,_,t,e,x,t,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_"}
 ```
 
 
@@ -79,5 +90,3 @@ Textual is a framework for building applications that run within your terminal. 
 
 ```{.textual path="docs/examples/app/widgets01.py"}
 ```
-
-

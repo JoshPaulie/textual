@@ -10,9 +10,58 @@ from rich.segment import Segment
 from rich.style import Style
 
 from ._cells import cell_len
-from ._types import Lines
 from .css.types import AlignHorizontal, AlignVertical
 from .geometry import Size
+
+
+class NoCellPositionForIndex(Exception):
+    pass
+
+
+def index_to_cell_position(segments: Iterable[Segment], index: int) -> int:
+    """Given a character index, return the cell position of that character within
+    an Iterable of Segments. This is the sum of the cell lengths of all the characters
+    *before* the character at `index`.
+
+    Args:
+        segments: The segments to find the cell position within.
+        index: The index to convert into a cell position.
+
+    Returns:
+        The cell position of the character at `index`.
+
+    Raises:
+        NoCellPositionForIndex: If the supplied index doesn't fall within the given segments.
+    """
+    if not segments:
+        raise NoCellPositionForIndex
+
+    if index == 0:
+        return 0
+
+    cell_position_end = 0
+    segment_length = 0
+    segment_end_index = 0
+    segment_cell_length = 0
+    text = ""
+    iter_segments = iter(segments)
+    try:
+        while segment_end_index < index:
+            segment = next(iter_segments)
+            text = segment.text
+            segment_length = len(text)
+            segment_cell_length = cell_len(text)
+            cell_position_end += segment_cell_length
+            segment_end_index += segment_length
+    except StopIteration:
+        raise NoCellPositionForIndex
+
+    # Check how far into this segment the target index is
+    segment_index_start = segment_end_index - segment_length
+    index_within_segment = index - segment_index_start
+    segment_cell_start = cell_position_end - segment_cell_length
+
+    return segment_cell_start + cell_len(text[:index_within_segment])
 
 
 def line_crop(
@@ -21,12 +70,12 @@ def line_crop(
     """Crops a list of segments between two cell offsets.
 
     Args:
-        segments (list[Segment]): A list of Segments for a line.
-        start (int): Start offset
-        end (int): End offset (exclusive)
-        total (int): Total cell length of segments.
+        segments: A list of Segments for a line.
+        start: Start offset (cells)
+        end: End offset (cells, exclusive)
+        total: Total cell length of segments.
     Returns:
-        list[Segment]: A new shorter list of segments
+        A new shorter list of segments
     """
     # This is essentially a specialized version of Segment.divide
     # The following line has equivalent functionality (but a little slower)
@@ -72,12 +121,12 @@ def line_trim(segments: list[Segment], start: bool, end: bool) -> list[Segment]:
     """Optionally remove a cell from the start and / or end of a list of segments.
 
     Args:
-        segments (list[Segment]): A line (list of Segments)
-        start (bool): Remove cell from start.
-        end (bool): Remove cell from end.
+        segments: A line (list of Segments)
+        start: Remove cell from start.
+        end: Remove cell from end.
 
     Returns:
-        list[Segment]: A new list of segments.
+        A new list of segments.
     """
     segments = segments.copy()
     if segments and start:
@@ -102,13 +151,13 @@ def line_pad(
     """Adds padding to the left and / or right of a list of segments.
 
     Args:
-        segments (Iterable[Segment]): A line of segments.
-        pad_left (int): Cells to pad on the left.
-        pad_right (int): Cells to pad on the right.
-        style (Style): Style of padded cells.
+        segments: A line of segments.
+        pad_left: Cells to pad on the left.
+        pad_right: Cells to pad on the right.
+        style: Style of padded cells.
 
     Returns:
-        list[Segment]: A new line with padding.
+        A new line with padding.
     """
     if pad_left and pad_right:
         return [
@@ -130,7 +179,7 @@ def line_pad(
 
 
 def align_lines(
-    lines: Lines,
+    lines: list[list[Segment]],
     style: Style,
     size: Size,
     horizontal: AlignHorizontal,
@@ -139,21 +188,21 @@ def align_lines(
     """Align lines.
 
     Args:
-        lines (Lines): A list of lines.
-        style (Style): Background style.
-        size (Size): Size of container.
-        horizontal (AlignHorizontal): Horizontal alignment.
-        vertical (AlignVertical): Vertical alignment
+        lines: A list of lines.
+        style: Background style.
+        size: Size of container.
+        horizontal: Horizontal alignment.
+        vertical: Vertical alignment
 
     Returns:
-        Iterable[list[Segment]]: Aligned lines.
+        Aligned lines.
 
     """
 
     width, height = size
     shape_width, shape_height = Segment.get_shape(lines)
 
-    def blank_lines(count: int) -> Lines:
+    def blank_lines(count: int) -> list[list[Segment]]:
         return [[Segment(" " * width, style)]] * count
 
     top_blank_lines = bottom_blank_lines = 0

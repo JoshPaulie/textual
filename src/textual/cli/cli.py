@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import sys
 
-import click
+try:
+    import click
+except ImportError:
+    print("Please install 'textual[dev]' to use the 'textual' command")
+    sys.exit(1)
+
 from importlib_metadata import version
 
+from textual.pilot import Pilot
 from textual._import_app import import_app, AppFail
 
 
@@ -84,7 +91,12 @@ def run_app(import_name: str, dev: bool, press: str) -> None:
         sys.exit(1)
 
     press_keys = press.split(",") if press else None
-    result = app.run(press=press_keys)
+
+    async def run_press_keys(pilot: Pilot) -> None:
+        if press_keys is not None:
+            await pilot.press(*press_keys)
+
+    result = app.run(auto_pilot=run_press_keys)
 
     if result is not None:
         from rich.console import Console
@@ -117,3 +129,19 @@ def colors():
     from textual.cli.previews import colors
 
     colors.app.run()
+
+
+@run.command("keys")
+def keys():
+    """Show key events."""
+    from textual.cli.previews import keys
+
+    keys.app.run()
+
+
+@run.command("diagnose")
+def run_diagnose():
+    """Print information about the Textual environment"""
+    from textual.cli.tools.diagnose import diagnose
+
+    diagnose()

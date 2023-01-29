@@ -1,24 +1,16 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-import sys
 from typing import ClassVar, NamedTuple, TYPE_CHECKING
 
-
 from .geometry import Region, Size, Spacing
-
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:  # pragma: no cover
-    from typing_extensions import TypeAlias
-
+from ._typing import TypeAlias
 
 if TYPE_CHECKING:
     from .widget import Widget
 
-
 ArrangeResult: TypeAlias = "tuple[list[WidgetPlacement], set[Widget]]"
-DockArrangeResult: TypeAlias = "tuple[list[WidgetPlacement], set[Widget], Spacing]"
+DockArrangeResult: TypeAlias = "tuple[list[WidgetPlacement], set[Widget], Spacing]]"
 
 
 class WidgetPlacement(NamedTuple):
@@ -46,37 +38,36 @@ class Layout(ABC):
         """Generate a layout map that defines where on the screen the widgets will be drawn.
 
         Args:
-            parent (Widget): Parent widget.
-            size (Size): Size of container.
+            parent: Parent widget.
+            size: Size of container.
 
         Returns:
-            Iterable[WidgetPlacement]: An iterable of widget location
+            An iterable of widget location
         """
 
     def get_content_width(self, widget: Widget, container: Size, viewport: Size) -> int:
-        """Get the width of the content.
+        """Get the optimal content width by arranging children.
 
         Args:
-            widget (Widget): The container widget.
-            container (Size): The container size.
-            viewport (Size): The viewport size.
+            widget: The container widget.
+            container: The container size.
+            viewport: The viewport size.
 
         Returns:
-            int: Width of the content.
+            Width of the content.
         """
-        width: int | None = None
-        gutter_width = widget.gutter.width
-        for child in widget.displayed_children:
-            if not child.is_container:
-                child_width = (
-                    child.get_content_width(container, viewport)
-                    + gutter_width
-                    + child.gutter.width
-                )
-                width = child_width if width is None else max(width, child_width)
-        if width is None:
-            width = container.width
-
+        if not widget.children:
+            width = 0
+        else:
+            # Use a size of 0, 0 to ignore relative sizes, since those are flexible anyway
+            placements, _, _ = widget._arrange(Size(0, 0))
+            width = max(
+                [
+                    placement.region.right + placement.margin.right
+                    for placement in placements
+                ],
+                default=0,
+            )
         return width
 
     def get_content_height(
@@ -85,20 +76,25 @@ class Layout(ABC):
         """Get the content height.
 
         Args:
-            widget (Widget): The container widget.
-            container (Size): The container size.
-            viewport (Size): The viewport.
-            width (int): The content width.
+            widget: The container widget.
+            container: The container size.
+            viewport: The viewport.
+            width: The content width.
 
         Returns:
-            int: Content height (in lines).
+            Content height (in lines).
         """
-        if not widget.displayed_children:
-            height = container.height
+        if not widget.children:
+            height = 0
         else:
-            placements, *_ = widget._arrange(Size(width, container.height))
+            # Use a height of zero to ignore relative heights
+            placements, _, _ = widget._arrange(Size(width, 0))
             height = max(
-                placement.region.bottom + placement.margin.bottom
-                for placement in placements
+                [
+                    placement.region.bottom + placement.margin.bottom
+                    for placement in placements
+                ],
+                default=0,
             )
+
         return height

@@ -61,12 +61,13 @@ class Input(Widget, can_focus=True):
         border: tall $background;
         width: 100%;
         height: 1;
+        min-height: 1;
     }
     Input.-disabled {
         opacity: 0.6;
     }
     Input:focus {
-       border: tall $accent;
+        border: tall $accent;
     }
     Input>.input--cursor {
         background: $surface;
@@ -115,6 +116,17 @@ class Input(Widget, can_focus=True):
         id: str | None = None,
         classes: str | None = None,
     ) -> None:
+        """Initialise the `Input` widget.
+
+        Args:
+            value: An optional default value for the input.
+            placeholder: Optional placeholder text for the input.
+            highlighter: An optional highlighter for the input.
+            password: Flag to say if the field should obfuscate its content. Default is `False`.
+            name: Optional name for the input widget.
+            id: Optional ID for the widget.
+            classes: Optional initial classes for the widget.
+        """
         super().__init__(name=name, id=id, classes=classes)
         if value is not None:
             self.value = value
@@ -129,7 +141,7 @@ class Input(Widget, can_focus=True):
 
     @property
     def _cursor_offset(self) -> int:
-        """Get the cell offset of the cursor."""
+        """The cell offset of the cursor."""
         offset = self._position_to_cell(self.cursor_position)
         if self._cursor_at_end:
             offset += 1
@@ -137,7 +149,7 @@ class Input(Widget, can_focus=True):
 
     @property
     def _cursor_at_end(self) -> bool:
-        """Check if the cursor is at the end"""
+        """Flag to indicate if the cursor is at the end"""
         return self.cursor_position >= len(self.value)
 
     def validate_cursor_position(self, cursor_position: int) -> int:
@@ -150,6 +162,11 @@ class Input(Widget, can_focus=True):
 
     def watch_cursor_position(self, cursor_position: int) -> None:
         width = self.content_size.width
+        if width == 0:
+            # If the input has no width the view position can't be elsewhere.
+            self.view_position = 0
+            return
+
         view_start = self.view_position
         view_end = view_start + width
         cursor_offset = self._cursor_offset
@@ -167,18 +184,22 @@ class Input(Widget, can_focus=True):
 
     @property
     def cursor_width(self) -> int:
-        """Get the width of the input (with extra space for cursor at the end)."""
+        """The width of the input (with extra space for cursor at the end)."""
         if self.placeholder and not self.value:
             return cell_len(self.placeholder)
         return self._position_to_cell(len(self.value)) + 1
 
     def render(self) -> RenderableType:
         if not self.value:
-            placeholder = Text(self.placeholder)
+            placeholder = Text(self.placeholder, justify="left")
             placeholder.stylize(self.get_component_rich_style("input--placeholder"))
             if self.has_focus:
                 cursor_style = self.get_component_rich_style("input--cursor")
                 if self._cursor_visible:
+                    # If the placeholder is empty, there's no characters to stylise
+                    # to make the cursor flash, so use a single space character
+                    if len(placeholder) == 0:
+                        placeholder = Text(" ")
                     placeholder.stylize(cursor_style, 0, 1)
             return placeholder
         return _InputRenderable(self, self._cursor_visible)
@@ -231,13 +252,14 @@ class Input(Widget, can_focus=True):
             return
         elif event.is_printable:
             event.stop()
-            assert event.char is not None
-            self.insert_text_at_cursor(event.char)
+            assert event.character is not None
+            self.insert_text_at_cursor(event.character)
             event.prevent_default()
 
     def on_paste(self, event: events.Paste) -> None:
         line = event.text.splitlines()[0]
         self.insert_text_at_cursor(line)
+        event.stop()
 
     def on_click(self, event: events.Click) -> None:
         offset = event.get_content_offset(self)
@@ -259,7 +281,7 @@ class Input(Widget, can_focus=True):
         """Insert new text at the cursor, move the cursor to the end of the new text.
 
         Args:
-            text (str): new text to insert.
+            text: New text to insert.
         """
         if self.cursor_position > len(self.value):
             self.value += text
@@ -345,17 +367,27 @@ class Input(Widget, can_focus=True):
         await self.emit(self.Submitted(self, self.value))
 
     class Changed(Message, bubble=True):
-        """Value was changed."""
+        """Value was changed.
+
+        Attributes:
+            value: The value that the input was changed to.
+            input: The `Input` widget that was changed.
+        """
 
         def __init__(self, sender: Input, value: str) -> None:
             super().__init__(sender)
-            self.value = value
-            self.input = sender
+            self.value: str = value
+            self.input: Input = sender
 
     class Submitted(Message, bubble=True):
-        """Value was updated via enter key or blur."""
+        """Sent when the enter key is pressed within an `Input`.
+
+        Attributes:
+            value: The value of the `Input` being submitted..
+            input: The `Input` widget that is being submitted.
+        """
 
         def __init__(self, sender: Input, value: str) -> None:
             super().__init__(sender)
-            self.value = value
-            self.input = sender
+            self.value: str = value
+            self.input: Input = sender

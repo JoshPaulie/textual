@@ -28,11 +28,11 @@ class TokenError(Exception):
     ) -> None:
         """
         Args:
-            path (str): Path to source or "<object>" if source is parsed from a literal.
-            code (str): The code being parsed.
-            start (tuple[int, int]): Line number of the error.
-            message (str): A message associated with the error.
-            end (tuple[int, int] | None): End location of token, or None if not known. Defaults to None.
+            path: Path to source or "<object>" if source is parsed from a literal.
+            code: The code being parsed.
+            start: Line number of the error.
+            message: A message associated with the error.
+            end: End location of token, or None if not known. Defaults to None.
         """
 
         self.path = path
@@ -45,7 +45,7 @@ class TokenError(Exception):
         """Get a short snippet of code around a given line number.
 
         Returns:
-            Panel: A renderable.
+            A renderable.
         """
         line_no = self.start[0]
         # TODO: Highlight column number
@@ -242,7 +242,7 @@ class Tokenizer:
         while True:
             if line_no >= len(self.lines):
                 raise EOFError(
-                    self.path, self.code, line_no, col_no, "Unexpected end of file"
+                    self.path, self.code, (line_no, col_no), "Unexpected end of file"
                 )
             line = self.lines[line_no]
             match = expect.search(line, col_no)

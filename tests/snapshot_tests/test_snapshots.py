@@ -1,32 +1,195 @@
+from pathlib import Path
+
+import pytest
+
+from textual.widgets import Placeholder
+
+# These paths should be relative to THIS directory.
+WIDGET_EXAMPLES_DIR = Path("../../docs/examples/widgets")
+LAYOUT_EXAMPLES_DIR = Path("../../docs/examples/guide/layout")
+STYLES_EXAMPLES_DIR = Path("../../docs/examples/styles")
+SNAPSHOT_APPS_DIR = Path("./snapshot_apps")
+
+
+# --- Layout related stuff ---
+
+
 def test_grid_layout_basic(snap_compare):
-    assert snap_compare("docs/examples/guide/layout/grid_layout1.py")
+    assert snap_compare(LAYOUT_EXAMPLES_DIR / "grid_layout1.py")
 
 
 def test_grid_layout_basic_overflow(snap_compare):
-    assert snap_compare("docs/examples/guide/layout/grid_layout2.py")
+    assert snap_compare(LAYOUT_EXAMPLES_DIR / "grid_layout2.py")
 
 
 def test_grid_layout_gutter(snap_compare):
-    assert snap_compare("docs/examples/guide/layout/grid_layout7_gutter.py")
+    assert snap_compare(LAYOUT_EXAMPLES_DIR / "grid_layout7_gutter.py")
 
 
 def test_layers(snap_compare):
-    assert snap_compare("docs/examples/guide/layout/layers.py")
+    assert snap_compare(LAYOUT_EXAMPLES_DIR / "layers.py")
 
 
 def test_horizontal_layout(snap_compare):
-    assert snap_compare("docs/examples/guide/layout/horizontal_layout.py")
+    assert snap_compare(LAYOUT_EXAMPLES_DIR / "horizontal_layout.py")
+
+
+def test_horizontal_layout_width_auto_dock(snap_compare):
+    assert snap_compare(SNAPSHOT_APPS_DIR / "horizontal_auto_width.py")
 
 
 def test_vertical_layout(snap_compare):
-    assert snap_compare("docs/examples/guide/layout/vertical_layout.py")
+    assert snap_compare(LAYOUT_EXAMPLES_DIR / "vertical_layout.py")
 
 
 def test_dock_layout_sidebar(snap_compare):
-    assert snap_compare("docs/examples/guide/layout/dock_layout2_sidebar.py")
+    assert snap_compare(LAYOUT_EXAMPLES_DIR / "dock_layout2_sidebar.py")
+
+
+# --- Widgets - rendering and basic interactions ---
+# Each widget should have a canonical example that is display in the docs.
+# When adding a new widget, ideally we should also create a snapshot test
+# from these examples which test rendering and simple interactions with it.
 
 
 def test_checkboxes(snap_compare):
     """Tests checkboxes but also acts a regression test for using
     width: auto in a Horizontal layout context."""
-    assert snap_compare("docs/examples/widgets/checkbox.py")
+    press = [
+        "shift+tab",
+        "enter",  # toggle off
+        "shift+tab",
+        "wait:20",
+        "enter",  # toggle on
+        "wait:20",
+    ]
+    assert snap_compare(WIDGET_EXAMPLES_DIR / "checkbox.py", press=press)
+
+
+def test_input_and_focus(snap_compare):
+    press = [
+        "tab",
+        *"Darren",  # Focus first input, write "Darren"
+        "tab",
+        *"Burns",
+        "_",  # Tab focus to second input, write "Burns"
+    ]
+    assert snap_compare(WIDGET_EXAMPLES_DIR / "input.py", press=press)
+
+
+def test_buttons_render(snap_compare):
+    # Testing button rendering. We press tab to focus the first button too.
+    assert snap_compare(WIDGET_EXAMPLES_DIR / "button.py", press=["tab"])
+
+
+def test_placeholder_render(snap_compare):
+    # Testing the rendering of the multiple placeholder variants and labels.
+    Placeholder.reset_color_cycle()
+    assert snap_compare(WIDGET_EXAMPLES_DIR / "placeholder.py")
+
+
+def test_datatable_render(snap_compare):
+    press = ["tab", "down", "down", "right", "up", "left", "_"]
+    assert snap_compare(WIDGET_EXAMPLES_DIR / "data_table.py", press=press)
+
+
+def test_datatable_row_cursor_render(snap_compare):
+    press = ["up", "left", "right", "down", "down", "_"]
+    assert snap_compare(SNAPSHOT_APPS_DIR / "data_table_row_cursor.py", press=press)
+
+
+def test_datatable_column_cursor_render(snap_compare):
+    press = ["left", "up", "down", "right", "right", "_"]
+    assert snap_compare(SNAPSHOT_APPS_DIR / "data_table_column_cursor.py", press=press)
+
+
+def test_footer_render(snap_compare):
+    assert snap_compare(WIDGET_EXAMPLES_DIR / "footer.py")
+
+
+def test_header_render(snap_compare):
+    assert snap_compare(WIDGET_EXAMPLES_DIR / "header.py")
+
+
+def test_list_view(snap_compare):
+    assert snap_compare(
+        WIDGET_EXAMPLES_DIR / "list_view.py", press=["tab", "down", "down", "up", "_"]
+    )
+
+
+def test_textlog_max_lines(snap_compare):
+    assert snap_compare("snapshot_apps/textlog_max_lines.py", press=[*"abcde", "_"])
+
+
+def test_fr_units(snap_compare):
+    assert snap_compare("snapshot_apps/fr_units.py")
+
+
+def test_visibility(snap_compare):
+    assert snap_compare("snapshot_apps/visibility.py")
+
+
+def test_tree_example(snap_compare):
+    assert snap_compare(WIDGET_EXAMPLES_DIR / "tree.py")
+
+
+# --- CSS properties ---
+# We have a canonical example for each CSS property that is shown in their docs.
+# If any of these change, something has likely broken, so snapshot each of them.
+
+PATHS = [
+    path.name
+    for path in (Path(__file__).parent / STYLES_EXAMPLES_DIR).iterdir()
+    if path.suffix == ".py"
+]
+
+
+@pytest.mark.parametrize("file_name", PATHS)
+def test_css_property(file_name, snap_compare):
+    path_to_app = STYLES_EXAMPLES_DIR / file_name
+    Placeholder.reset_color_cycle()
+    assert snap_compare(path_to_app)
+
+
+def test_multiple_css(snap_compare):
+    # Interaction between multiple CSS files and app-level/classvar CSS
+    assert snap_compare("snapshot_apps/multiple_css/multiple_css.py")
+
+
+def test_order_independence(snap_compare):
+    assert snap_compare("snapshot_apps/layer_order_independence.py")
+
+
+def test_order_independence_toggle(snap_compare):
+    assert snap_compare("snapshot_apps/layer_order_independence.py", press="t,_")
+
+
+def test_columns_height(snap_compare):
+    # Interaction with height auto, and relative heights to make columns
+    assert snap_compare("snapshot_apps/columns_height.py")
+
+
+def test_offsets(snap_compare):
+    """Test offsets of containers"""
+    assert snap_compare("snapshot_apps/offsets.py")
+
+
+def test_nested_auto_heights(snap_compare):
+    """Test refreshing widget within a auto sized container"""
+    assert snap_compare("snapshot_apps/nested_auto_heights.py", press=["1", "2", "_"])
+
+
+# --- Other ---
+
+
+def test_key_display(snap_compare):
+    assert snap_compare(SNAPSHOT_APPS_DIR / "key_display.py")
+
+
+def test_demo(snap_compare):
+    """Test the demo app (python -m textual)"""
+    assert snap_compare(
+        Path("../../src/textual/demo.py"),
+        press=["down", "down", "down", "_", "_", "_"],
+        terminal_size=(100, 30),
+    )

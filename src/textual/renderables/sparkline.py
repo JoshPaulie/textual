@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import statistics
-from typing import Sequence, Iterable, Callable, TypeVar
+from typing import Generic, Sequence, Iterable, Callable, TypeVar
 
 from rich.color import Color
 from rich.console import ConsoleOptions, Console, RenderResult
@@ -12,16 +12,18 @@ from textual.renderables._blend_colors import blend_colors
 
 T = TypeVar("T", int, float)
 
+SummaryFunction = Callable[[Sequence[T]], float]
 
-class Sparkline:
+
+class Sparkline(Generic[T]):
     """A sparkline representing a series of data.
 
     Args:
-        data (Sequence[T]): The sequence of data to render.
-        width (int, optional): The width of the sparkline/the number of buckets to partition the data into.
-        min_color (Color, optional): The color of values equal to the min value in data.
-        max_color (Color, optional): The color of values equal to the max value in data.
-        summary_function (Callable[list[T]]): Function that will be applied to each bucket.
+        data: The sequence of data to render.
+        width: The width of the sparkline/the number of buckets to partition the data into.
+        min_color: The color of values equal to the min value in data.
+        max_color: The color of values equal to the max value in data.
+        summary_function: Function that will be applied to each bucket.
     """
 
     BARS = "▁▂▃▄▅▆▇█"
@@ -33,22 +35,22 @@ class Sparkline:
         width: int | None,
         min_color: Color = Color.from_rgb(0, 255, 0),
         max_color: Color = Color.from_rgb(255, 0, 0),
-        summary_function: Callable[[list[T]], float] = max,
+        summary_function: SummaryFunction[T] = max,
     ) -> None:
-        self.data = data
+        self.data: Sequence[T] = data
         self.width = width
         self.min_color = Style.from_color(min_color)
         self.max_color = Style.from_color(max_color)
-        self.summary_function = summary_function
+        self.summary_function: SummaryFunction[T] = summary_function
 
     @classmethod
-    def _buckets(cls, data: Sequence[T], num_buckets: int) -> Iterable[list[T]]:
+    def _buckets(cls, data: Sequence[T], num_buckets: int) -> Iterable[Sequence[T]]:
         """Partition ``data`` into ``num_buckets`` buckets. For example, the data
         [1, 2, 3, 4] partitioned into 2 buckets is [[1, 2], [3, 4]].
 
         Args:
-            data (Sequence[T]): The data to partition.
-            num_buckets (int): The number of buckets to partition the data into.
+            data: The data to partition.
+            num_buckets: The number of buckets to partition the data into.
         """
         num_steps, remainder = divmod(len(data), num_buckets)
         for i in range(num_buckets):
@@ -73,13 +75,15 @@ class Sparkline:
         minimum, maximum = min(self.data), max(self.data)
         extent = maximum - minimum or 1
 
-        buckets = list(self._buckets(self.data, num_buckets=self.width))
+        buckets = tuple(self._buckets(self.data, num_buckets=width))
 
-        bucket_index = 0
+        bucket_index = 0.0
         bars_rendered = 0
         step = len(buckets) / width
         summary_function = self.summary_function
         min_color, max_color = self.min_color.color, self.max_color.color
+        assert min_color is not None
+        assert max_color is not None
         while bars_rendered < width:
             partition = buckets[int(bucket_index)]
             partition_summary = summary_function(partition)
@@ -94,10 +98,16 @@ class Sparkline:
 if __name__ == "__main__":
     console = Console()
 
-    def last(l):
+    def last(l: Sequence[T]) -> T:
         return l[-1]
 
-    funcs = min, max, last, statistics.median, statistics.mean
+    funcs: Sequence[SummaryFunction[int]] = (
+        min,
+        max,
+        last,
+        statistics.median,
+        statistics.mean,
+    )
     nums = [10, 2, 30, 60, 45, 20, 7, 8, 9, 10, 50, 13, 10, 6, 5, 4, 3, 7, 20]
     console.print(f"data = {nums}\n")
     for f in funcs:

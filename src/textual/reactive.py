@@ -2,9 +2,18 @@ from __future__ import annotations
 
 from functools import partial
 from inspect import isawaitable
-from typing import TYPE_CHECKING, Any, Callable, Generic, Type, TypeVar, Union
-from weakref import WeakSet
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Generic,
+    Type,
+    TypeVar,
+    Union,
+)
 
+import rich.repr
 
 from . import events
 from ._callback import count_parameters, invoke
@@ -15,7 +24,6 @@ if TYPE_CHECKING:
     from .widget import Widget
 
     Reactable = Union[Widget, App]
-
 
 ReactiveType = TypeVar("ReactiveType")
 
@@ -29,16 +37,20 @@ _NOT_SET = _NotSet()
 T = TypeVar("T")
 
 
+@rich.repr.auto
 class Reactive(Generic[ReactiveType]):
     """Reactive descriptor.
 
     Args:
-        default (ReactiveType | Callable[[], ReactiveType]): A default value or callable that returns a default.
-        layout (bool, optional): Perform a layout on change. Defaults to False.
-        repaint (bool, optional): Perform a repaint on change. Defaults to True.
-        init (bool, optional): Call watchers on initialize (post mount). Defaults to False.
-
+        default: A default value or callable that returns a default.
+        layout: Perform a layout on change. Defaults to False.
+        repaint: Perform a repaint on change. Defaults to True.
+        init: Call watchers on initialize (post mount). Defaults to False.
+        always_update: Call watchers even when the new value equals the old value. Defaults to False.
+        compute: Run compute methods when attribute is changed. Defaults to True.
     """
+
+    _reactives: TypeVar[dict[str, object]] = {}
 
     def __init__(
         self,
@@ -47,11 +59,23 @@ class Reactive(Generic[ReactiveType]):
         layout: bool = False,
         repaint: bool = True,
         init: bool = False,
+        always_update: bool = False,
+        compute: bool = True,
     ) -> None:
         self._default = default
         self._layout = layout
         self._repaint = repaint
         self._init = init
+        self._always_update = always_update
+        self._run_compute = compute
+
+    def __rich_repr__(self) -> rich.repr.Result:
+        yield self._default
+        yield "layout", self._layout
+        yield "repaint", self._repaint
+        yield "init", self._init
+        yield "always_update", self._always_update
+        yield "compute", self._run_compute
 
     @classmethod
     def init(
@@ -60,18 +84,29 @@ class Reactive(Generic[ReactiveType]):
         *,
         layout: bool = False,
         repaint: bool = True,
+        always_update: bool = False,
+        compute: bool = True,
     ) -> Reactive:
         """A reactive variable that calls watchers and compute on initialize (post mount).
 
         Args:
-            default (ReactiveType | Callable[[], ReactiveType]): A default value or callable that returns a default.
-            layout (bool, optional): Perform a layout on change. Defaults to False.
-            repaint (bool, optional): Perform a repaint on change. Defaults to True.
+            default: A default value or callable that returns a default.
+            layout: Perform a layout on change. Defaults to False.
+            repaint: Perform a repaint on change. Defaults to True.
+            always_update: Call watchers even when the new value equals the old value. Defaults to False.
+            compute: Run compute methods when attribute is changed. Defaults to True.
 
         Returns:
-            Reactive: A Reactive instance which calls watchers or initialize.
+            A Reactive instance which calls watchers or initialize.
         """
-        return cls(default, layout=layout, repaint=repaint, init=True)
+        return cls(
+            default,
+            layout=layout,
+            repaint=repaint,
+            init=True,
+            always_update=always_update,
+            compute=compute,
+        )
 
     @classmethod
     def var(
@@ -81,33 +116,58 @@ class Reactive(Generic[ReactiveType]):
         """A reactive variable that doesn't update or layout.
 
         Args:
-            default (ReactiveType | Callable[[], ReactiveType]):  A default value or callable that returns a default.
+            default: A default value or callable that returns a default.
 
         Returns:
-            Reactive: A Reactive descriptor.
+            A Reactive descriptor.
         """
-        return cls(default, layout=False, repaint=False, init=True)
+        return cls(default, layout=False, repaint=False, init=False)
+
+    def _initialize_reactive(self, obj: Reactable, name: str) -> None:
+        """Initialized a reactive attribute on an object.
+
+        Args:
+            obj: An object with reactive attributes.
+            name: Name of attribute.
+        """
+        internal_name = f"_reactive_{name}"
+        if hasattr(obj, internal_name):
+            # Attribute already has a value
+            return
+        compute_method = getattr(obj, f"compute_{name}", None)
+        if compute_method is not None and self._init:
+            default = getattr(obj, f"compute_{name}")()
+        else:
+            default_or_callable = self._default
+            default = (
+                default_or_callable()
+                if callable(default_or_callable)
+                else default_or_callable
+            )
+        setattr(obj, internal_name, default)
+        if self._init:
+            self._check_watchers(obj, name, default)
 
     @classmethod
-    def _initialize_object(cls, obj: object) -> None:
+    def _initialize_object(cls, obj: Reactable) -> None:
         """Set defaults and call any watchers / computes for the first time.
 
         Args:
-            obj (Reactable): An object with Reactive descriptors
+            obj: An object with Reactive descriptors
         """
-        if not hasattr(obj, "__reactive_initialized"):
-            startswith = str.startswith
-            for key in obj.__class__.__dict__:
-                if startswith(key, "_default_"):
-                    name = key[9:]
-                    # Check defaults
-                    if not hasattr(obj, name):
-                        # Attribute has no value yet
-                        default = getattr(obj, key)
-                        default_value = default() if callable(default) else default
-                        # Set the default vale (calls `__set__`)
-                        setattr(obj, name, default_value)
-        setattr(obj, "__reactive_initialized", True)
+
+        for name, reactive in obj._reactives.items():
+            reactive._initialize_reactive(obj, name)
+
+    @classmethod
+    def _reset_object(cls, obj: object) -> None:
+        """Reset reactive structures on object (to avoid reference cycles).
+
+        Args:
+            obj: A reactive object.
+        """
+        getattr(obj, "__watchers", {}).clear()
+        getattr(obj, "__computes", []).clear()
 
     def __set_name__(self, owner: Type[MessageTarget], name: str) -> None:
 
@@ -129,137 +189,139 @@ class Reactive(Generic[ReactiveType]):
         setattr(owner, f"_default_{name}", default)
 
     def __get__(self, obj: Reactable, obj_type: type[object]) -> ReactiveType:
-        value: _NotSet | ReactiveType = getattr(obj, self.internal_name, _NOT_SET)
-        if isinstance(value, _NotSet):
-            # No value present, we need to set the default
-            init_name = f"_default_{self.name}"
-            default = getattr(obj, init_name)
-            default_value = default() if callable(default) else default
-            # Set and return the value
-            setattr(obj, self.internal_name, default_value)
-            if self._init:
-                self._check_watchers(obj, self.name, default_value, first_set=True)
-            return default_value
+        _rich_traceback_omit = True
+
+        self._initialize_reactive(obj, self.name)
+
+        value: ReactiveType
+        compute_method = getattr(self, f"compute_{self.name}", None)
+        if compute_method is not None:
+            old_value = getattr(obj, self.internal_name)
+            value = getattr(obj, f"compute_{self.name}")()
+            setattr(obj, self.internal_name, value)
+            self._check_watchers(obj, self.name, old_value)
+        else:
+            value = getattr(obj, self.internal_name)
         return value
 
     def __set__(self, obj: Reactable, value: ReactiveType) -> None:
+        _rich_traceback_omit = True
+
+        self._initialize_reactive(obj, self.name)
         name = self.name
         current_value = getattr(obj, name)
         # Check for validate function
         validate_function = getattr(obj, f"validate_{name}", None)
-        # Check if this is the first time setting the value
-        first_set = getattr(obj, f"__first_set_{self.internal_name}", True)
-        # Call validate, but not on first set.
-        if callable(validate_function) and not first_set:
+        # Call validate
+        if callable(validate_function):
             value = validate_function(value)
         # If the value has changed, or this is the first time setting the value
-        if current_value != value or first_set:
-            # Set the first set flag to False
-            setattr(obj, f"__first_set_{self.internal_name}", False)
+        if current_value != value or self._always_update:
             # Store the internal value
             setattr(obj, self.internal_name, value)
+
             # Check all watchers
-            self._check_watchers(obj, name, current_value, first_set=first_set)
+            self._check_watchers(obj, name, current_value)
+
+            if self._run_compute:
+                self._compute(obj)
+
             # Refresh according to descriptor flags
             if self._layout or self._repaint:
                 obj.refresh(repaint=self._repaint, layout=self._layout)
 
     @classmethod
-    def _check_watchers(
-        cls, obj: Reactable, name: str, old_value: Any, first_set: bool = False
-    ) -> None:
+    def _check_watchers(cls, obj: Reactable, name: str, old_value: Any):
         """Check watchers, and call watch methods / computes
 
         Args:
-            obj (Reactable): The reactable object.
-            name (str): Attribute name.
-            old_value (Any): The old (previous) value of the attribute.
-            first_set (bool, optional): True if this is the first time setting the value. Defaults to False.
+            obj: The reactable object.
+            name: Attribute name.
+            old_value: The old (previous) value of the attribute.
         """
+        _rich_traceback_omit = True
         # Get the current value.
         internal_name = f"_reactive_{name}"
         value = getattr(obj, internal_name)
 
-        async def update_watcher(
-            obj: Reactable, watch_function: Callable, old_value: Any, value: Any
-        ) -> None:
-            """Call watch function, and run compute.
+        async def await_watcher(awaitable: Awaitable) -> None:
+            """Coroutine to await an awaitable returned from a watcher"""
+            _rich_traceback_omit = True
+            await awaitable
+            # Watcher may have changed the state, so run compute again
+            obj.post_message_no_wait(
+                events.Callback(sender=obj, callback=partial(Reactive._compute, obj))
+            )
+
+        def invoke_watcher(
+            watch_function: Callable, old_value: object, value: object
+        ) -> bool:
+            """Invoke a watch function.
 
             Args:
-                obj (Reactable): Reactable object.
-                watch_function (Callable): Watch method.
-                old_value (Any): Old value.
-                value (Any): new value.
-            """
-            _rich_traceback_guard = True
-            # Call watch with one or two parameters
-            if count_parameters(watch_function) == 2:
-                watch_result = watch_function(old_value, value)
-            else:
-                watch_result = watch_function(value)
-            # Optionally await result
-            if isawaitable(watch_result):
-                await watch_result
-            # Run computes
-            await Reactive._compute(obj)
+                watch_function: A watch function, which may be sync or async.
+                old_value: The old value of the attribute.
+                value: The new value of the attribute.
 
-        # Check for watch method
+            Returns:
+                True if the watcher was run, or False if it was posted.
+            """
+            _rich_traceback_omit = True
+            param_count = count_parameters(watch_function)
+            if param_count == 2:
+                watch_result = watch_function(old_value, value)
+            elif param_count == 1:
+                watch_result = watch_function(value)
+            else:
+                watch_result = watch_function()
+            if isawaitable(watch_result):
+                # Result is awaitable, so we need to await it within an async context
+                obj.post_message_no_wait(
+                    events.Callback(
+                        sender=obj, callback=partial(await_watcher, watch_result)
+                    )
+                )
+                return False
+            else:
+                return True
+
         watch_function = getattr(obj, f"watch_{name}", None)
         if callable(watch_function):
-            # Post a callback message, so we can call the watch method in an orderly async manner
-            obj.post_message_no_wait(
-                events.Callback(
-                    sender=obj,
-                    callback=partial(
-                        update_watcher, obj, watch_function, old_value, value
-                    ),
-                )
-            )
+            invoke_watcher(watch_function, old_value, value)
 
-        # Check for watchers set via `watch`
-        watcher_name = f"__{name}_watchers"
-        watchers = getattr(obj, watcher_name, ())
+        watchers: list[Callable] = getattr(obj, "__watchers", {}).get(name, [])
         for watcher in watchers:
-            obj.post_message_no_wait(
-                events.Callback(
-                    sender=obj,
-                    callback=partial(update_watcher, obj, watcher, old_value, value),
-                )
-            )
-
-        # Run computes
-        obj.post_message_no_wait(
-            events.Callback(sender=obj, callback=partial(Reactive._compute, obj))
-        )
+            invoke_watcher(watcher, old_value, value)
 
     @classmethod
-    async def _compute(cls, obj: Reactable) -> None:
+    def _compute(cls, obj: Reactable) -> None:
         """Invoke all computes.
 
         Args:
-            obj (Reactable): Reactable object.
+            obj: Reactable object.
         """
         _rich_traceback_guard = True
-        computes = getattr(obj, "__computes", [])
-        for compute in computes:
+        for compute in obj._reactives.keys():
             try:
                 compute_method = getattr(obj, f"compute_{compute}")
             except AttributeError:
                 continue
-
-            value = await invoke(compute_method)
-            setattr(obj, compute, value)
+            current_value = getattr(obj, f"_reactive_{compute}")
+            value = compute_method()
+            setattr(obj, f"_reactive_{compute}", value)
+            if value != current_value:
+                cls._check_watchers(obj, compute, current_value)
 
 
 class reactive(Reactive[ReactiveType]):
     """Create a reactive attribute.
 
     Args:
-        default (ReactiveType | Callable[[], ReactiveType]): A default value or callable that returns a default.
-        layout (bool, optional): Perform a layout on change. Defaults to False.
-        repaint (bool, optional): Perform a repaint on change. Defaults to True.
-        init (bool, optional): Call watchers on initialize (post mount). Defaults to True.
-
+        default: A default value or callable that returns a default.
+        layout: Perform a layout on change. Defaults to False.
+        repaint: Perform a repaint on change. Defaults to True.
+        init: Call watchers on initialize (post mount). Defaults to True.
+        always_update: Call watchers even when the new value equals the old value. Defaults to False.
     """
 
     def __init__(
@@ -269,35 +331,60 @@ class reactive(Reactive[ReactiveType]):
         layout: bool = False,
         repaint: bool = True,
         init: bool = True,
+        always_update: bool = False,
     ) -> None:
-        super().__init__(default, layout=layout, repaint=repaint, init=init)
+        super().__init__(
+            default,
+            layout=layout,
+            repaint=repaint,
+            init=init,
+            always_update=always_update,
+        )
 
 
 class var(Reactive[ReactiveType]):
     """Create a reactive attribute (with no auto-refresh).
 
     Args:
-        default (ReactiveType | Callable[[], ReactiveType]): A default value or callable that returns a default.
+        default: A default value or callable that returns a default.
+        init: Call watchers on initialize (post mount). Defaults to True.
     """
 
-    def __init__(self, default: ReactiveType | Callable[[], ReactiveType]) -> None:
-        super().__init__(default, layout=False, repaint=False, init=True)
+    def __init__(
+        self,
+        default: ReactiveType | Callable[[], ReactiveType],
+        init: bool = True,
+    ) -> None:
+        super().__init__(
+            default,
+            layout=False,
+            repaint=False,
+            init=init,
+        )
 
 
 def watch(
-    obj: Reactable, attribute_name: str, callback: Callable[[Any], object]
+    obj: Reactable,
+    attribute_name: str,
+    callback: Callable[[Any], object],
+    init: bool = True,
 ) -> None:
     """Watch a reactive variable on an object.
 
     Args:
-        obj (Reactable): The parent object.
-        attribute_name (str): The attribute to watch.
-        callback (Callable[[Any], object]): A callable to call when the attribute changes.
+        obj: The parent object.
+        attribute_name: The attribute to watch.
+        callback: A callable to call when the attribute changes.
+        init: True to call watcher initialization. Defaults to True.
     """
-    watcher_name = f"__{attribute_name}_watchers"
-    current_value = getattr(obj, attribute_name, None)
-    if not hasattr(obj, watcher_name):
-        setattr(obj, watcher_name, WeakSet())
-    watchers = getattr(obj, watcher_name)
-    watchers.add(callback)
-    Reactive._check_watchers(obj, attribute_name, current_value)
+
+    if not hasattr(obj, "__watchers"):
+        setattr(obj, "__watchers", {})
+    watchers: dict[str, list[Callable]] = getattr(obj, "__watchers")
+    watcher_list = watchers.setdefault(attribute_name, [])
+    if callback in watcher_list:
+        return
+    watcher_list.append(callback)
+    if init:
+        current_value = getattr(obj, attribute_name, None)
+        Reactive._check_watchers(obj, attribute_name, current_value)

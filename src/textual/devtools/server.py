@@ -17,10 +17,10 @@ async def websocket_handler(request: Request) -> WebSocketResponse:
     """aiohttp websocket handler for sending data between devtools client and server
 
     Args:
-        request (Request): The request to the websocket endpoint
+        request: The request to the websocket endpoint
 
     Returns:
-        WebSocketResponse: The websocket response
+        The websocket response
     """
     service: DevtoolsService = request.app["service"]
     return await service.handle(request)
@@ -40,8 +40,8 @@ async def _on_startup(app: Application) -> None:
 def _run_devtools(verbose: bool, exclude: list[str] | None = None) -> None:
     app = _make_devtools_aiohttp_app(verbose=verbose, exclude=exclude)
 
-    def noop_print(_: str):
-        return None
+    def noop_print(_: str) -> None:
+        pass
 
     try:
         run_app(
@@ -77,7 +77,3 @@ def _make_devtools_aiohttp_app(
     )
 
     return app
-
-
-if __name__ == "__main__":
-    _run_devtools()

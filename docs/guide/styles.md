@@ -20,7 +20,7 @@ The first line sets the [background](../styles/background.md) style to `"darkblu
 
 The second line sets [border](../styles/border.md) to a tuple of `("heavy", "white")` which tells Textual to draw a white border with a style of `"heavy"`. Running this code will show the following:
 
-```{.textual path="docs/examples/guide/styles/screen.py"}
+```{.textual path="docs/examples/guide/styles/screen.py" press="_"}
 ```
 
 ## Styling widgets
@@ -48,9 +48,9 @@ Note how the combined height of the widget is three rows in the terminal. This i
 
 ## Colors
 
-There are a number of style attributes which accept colors. The most commonly used are [color](../styles/color.md) which sets the default color of text on a widget, and [background](..styles/background/md) which sets the background color (beneath the text).
+There are a number of style attributes which accept colors. The most commonly used are [color](../styles/color.md) which sets the default color of text on a widget, and [background](../styles/background.md) which sets the background color (beneath the text).
 
-You can set a color value to one of a number of pre-defined color constants, such as `"crimson"`, `"lime"`, and `"palegreen"`. You can find a full list in the [Color reference](../reference/color.md#textual.color--named-colors).
+You can set a color value to one of a number of pre-defined color constants, such as `"crimson"`, `"lime"`, and `"palegreen"`. You can find a full list in the [Color API](../api/color.md#textual.color--named-colors).
 
 Here's how you would set the screen background to lime:
 
@@ -155,7 +155,7 @@ If you run this you will see the height of the widget now grows to accommodate t
 
 Textual offers a few different *units* which allow you to specify dimensions relative to the screen or container. Relative units can better make use of available space if the user resizes the terminal.
 
-- Percentage units are given as a string containing a number followed by a percentage symbol, e.g. `"50%"`. Setting a dimension to a percentage unit will cause it to fit in that percentage of the available space. For instance, setting width to `"50%"` will cause the width of the widget to be half the available space.
+- Percentage units are given as a number followed by a percent (`%`) symbol and will set a dimension to a proportion of the widget's *parent* size. For instance, setting width to `"50%"` will cause a widget to be half the width of its parent.
 - View units are similar to percentage units, but explicitly reference a dimension. The `vw` unit sets a dimension to a percentage of the terminal *width*, and `vh` sets a dimension to a percentage of the terminal *height*.
 - The `w` unit sets a dimension to a percentage of the available width (which may be smaller than the terminal size if the widget is within another widget).
 - The `h` unit sets a dimension to a percentage of the available height.

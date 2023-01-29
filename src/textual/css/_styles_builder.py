@@ -67,11 +67,11 @@ def _join_tokens(tokens: Iterable[Token], joiner: str = "") -> str:
     """Convert tokens into a string by joining their values
 
     Args:
-        tokens (Iterable[Token]): Tokens to join
-        joiner (str): String to join on, defaults to ""
+        tokens: Tokens to join
+        joiner: String to join on, defaults to ""
 
     Returns:
-        str: The tokens, joined together to form a string.
+        The tokens, joined together to form a string.
     """
     return joiner.join(token.value for token in tokens)
 
@@ -135,7 +135,7 @@ class StylesBuilder:
         i.e. the ones for which we have a `process_[property name]` method
 
         Returns:
-            Sequence[str]: All the "Python-ised" CSS property names this class can handle.
+            All the "Python-ised" CSS property names this class can handle.
 
         Example: ("width", "background", "offset_x", ...)
         """
@@ -173,12 +173,12 @@ class StylesBuilder:
         """Process a declaration that expects an enum.
 
         Args:
-            name (str): Name of declaration.
-            tokens (list[Token]): Tokens from parser.
-            valid_values (list[str]): A set of valid values.
+            name: Name of declaration.
+            tokens: Tokens from parser.
+            valid_values: A set of valid values.
 
         Returns:
-            bool: True if the value is valid or False if it is invalid (also generates an error)
+            True if the value is valid or False if it is invalid (also generates an error)
         """
 
         if len(tokens) != 1:
@@ -672,7 +672,7 @@ class StylesBuilder:
 
     def process_layer(self, name: str, tokens: list[Token]) -> None:
         if len(tokens) > 1:
-            self.error(name, tokens[1], f"unexpected tokens in dock-edge declaration")
+            self.error(name, tokens[1], "unexpected tokens in dock-edge declaration")
         self.styles._rules["layer"] = tokens[0].value
 
     def process_layers(self, name: str, tokens: list[Token]) -> None:
@@ -865,16 +865,12 @@ class StylesBuilder:
 
     def _process_grid_rows_or_columns(self, name: str, tokens: list[Token]) -> None:
         scalars: list[Scalar] = []
+        percent_unit = Unit.WIDTH if name == "grid-columns" else Unit.HEIGHT
         for token in tokens:
             if token.name == "number":
                 scalars.append(Scalar.from_number(float(token.value)))
             elif token.name == "scalar":
-                scalars.append(
-                    Scalar.parse(
-                        token.value,
-                        percent_unit=Unit.WIDTH if name == "rows" else Unit.HEIGHT,
-                    )
-                )
+                scalars.append(Scalar.parse(token.value, percent_unit=percent_unit))
             else:
                 self.error(
                     name,
@@ -964,10 +960,10 @@ class StylesBuilder:
         Returns a valid CSS property "Python" name, or None if no close matches could be found.
 
         Args:
-            rule_name (str): An invalid "Python-ised" CSS property (i.e. "offst_x" rather than "offst-x")
+            rule_name: An invalid "Python-ised" CSS property (i.e. "offst_x" rather than "offst-x")
 
         Returns:
-            str | None: The closest valid "Python-ised" CSS property.
+            The closest valid "Python-ised" CSS property.
                 Returns `None` if no close matches could be found.
 
         Example: returns "background" for rule_name "bkgrund", "offset_x" for "ofset_x"

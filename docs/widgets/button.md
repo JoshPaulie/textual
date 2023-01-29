@@ -25,7 +25,7 @@ Clicking any of the non-disabled buttons in the example app below will result th
 
 === "button.css"
 
-    ```css
+    ```sass
     --8<-- "docs/examples/widgets/button.css"
     ```
 
@@ -55,4 +55,4 @@ _No other attributes_
 
 ## See Also
 
-* [Button](../reference/button.md) code reference
+* [Button](../api/button.md) code reference

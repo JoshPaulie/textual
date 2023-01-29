@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import unicodedata
 from enum import Enum
 
 
@@ -69,10 +70,10 @@ class Keys(str, Enum):
     ControlShift9 = "ctrl+shift+9"
     ControlShift0 = "ctrl+shift+0"
 
-    ControlBackslash = "ctrl+\\"
-    ControlSquareClose = "ctrl+]"
-    ControlCircumflex = "ctrl+^"
-    ControlUnderscore = "ctrl+_"
+    ControlBackslash = "ctrl+backslash"
+    ControlSquareClose = "ctrl+right_square_bracket"
+    ControlCircumflex = "ctrl+circumflex_accent"
+    ControlUnderscore = "ctrl+underscore"
 
     Left = "left"
     Right = "right"
@@ -219,7 +220,51 @@ KEY_ALIASES = {
     "ctrl+j": ["newline"],
 }
 
+KEY_DISPLAY_ALIASES = {
+    "up": "↑",
+    "down": "↓",
+    "left": "←",
+    "right": "→",
+    "backspace": "⌫",
+    "escape": "ESC",
+    "enter": "⏎",
+    "minus": "-",
+}
+
 
 def _get_key_aliases(key: str) -> list[str]:
     """Return all aliases for the given key, including the key itself"""
     return [key] + KEY_ALIASES.get(key, [])
+
+
+def _get_key_display(key: str) -> str:
+    """Given a key (i.e. the `key` string argument to Binding __init__),
+    return the value that should be displayed in the app when referring
+    to this key (e.g. in the Footer widget)."""
+    display_alias = KEY_DISPLAY_ALIASES.get(key)
+    if display_alias:
+        return display_alias
+
+    original_key = REPLACED_KEYS.get(key, key)
+    upper_original = original_key.upper().replace("_", " ")
+    try:
+        unicode_character = unicodedata.lookup(upper_original)
+    except KeyError:
+        return upper_original
+
+    # Check if printable. `delete` for example maps to a control sequence
+    # which we don't want to write to the terminal.
+    if unicode_character.isprintable():
+        return unicode_character
+    return upper_original
+
+
+def _character_to_key(character: str) -> str:
+    """Convert a single character to a key value."""
+    assert len(character) == 1
+    if not character.isalnum():
+        key = unicodedata.name(character).lower().replace("-", "_").replace(" ", "_")
+    else:
+        key = character
+    key = KEY_NAME_REPLACEMENTS.get(key, key)
+    return key

@@ -25,15 +25,27 @@ class HeaderIcon(Widget):
         return self.icon
 
 
-class HeaderClock(Widget):
+class HeaderClockSpace(Widget):
+    """The space taken up by the clock on the right of the header."""
+
+    DEFAULT_CSS = """
+    HeaderClockSpace {
+        dock: right;
+        width: 10;
+        padding: 0 1;
+    }
+    """
+
+    def render(self) -> str:
+        return ""
+
+
+class HeaderClock(HeaderClockSpace):
     """Display a clock on the right of the header."""
 
     DEFAULT_CSS = """
     HeaderClock {
-        dock: right;
-        width: 10;
-        padding: 0 1;
-        background: $secondary-background-lighten-1;
+        background: $foreground-darken-1 5%;
         color: $text;
         text-opacity: 85%;
         content-align: center middle;
@@ -54,7 +66,6 @@ class HeaderTitle(Widget):
     HeaderTitle {
         content-align: center middle;
         width: 100%;
-        margin-right: 10;
     }
     """
 
@@ -73,14 +84,14 @@ class Header(Widget):
     """A header widget with icon and clock.
 
     Args:
-        show_clock (bool, optional): True if the clock should be shown on the right of the header.
+        show_clock: True if the clock should be shown on the right of the header.
     """
 
     DEFAULT_CSS = """
     Header {
         dock: top;
         width: 100%;
-        background: $secondary-background;
+        background: $foreground 5%;
         color: $text;
         height: 1;
     }
@@ -107,8 +118,7 @@ class Header(Widget):
     def compose(self):
         yield HeaderIcon()
         yield HeaderTitle()
-        if self.show_clock:
-            yield HeaderClock()
+        yield HeaderClock() if self.show_clock else HeaderClockSpace()
 
     def watch_tall(self, tall: bool) -> None:
         self.set_class(tall, "-tall")

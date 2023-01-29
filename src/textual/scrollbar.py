@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from math import ceil
+from typing import ClassVar, Type
 
 import rich.repr
 from rich.color import Color
-from rich.console import ConsoleOptions, RenderableType, RenderResult
+from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
 from rich.segment import Segment, Segments
 from rich.style import Style, StyleType
 
@@ -190,6 +191,29 @@ class ScrollBarRender:
 @rich.repr.auto
 class ScrollBar(Widget):
 
+    renderer: ClassVar[Type[ScrollBarRender]] = ScrollBarRender
+    """The class used for rendering scrollbars.
+    This can be overriden and set to a ScrollBarRender-derived class
+    in order to delegate all scrollbar rendering to that class. E.g.:
+
+    ```
+    class MyScrollBarRender(ScrollBarRender): ...
+
+    app = MyApp()
+    ScrollBar.renderer = MyScrollBarRender
+    app.run()
+    ```
+
+    Because this variable is accessed through specific instances
+    (rather than through the class ScrollBar itself) it is also possible
+    to set this on specific scrollbar instance to change only that
+    instance:
+
+    ```
+    my_widget.horizontal_scrollbar.renderer = MyScrollBarRender
+    ```
+    """
+
     DEFAULT_CSS = """
     ScrollBar {
         link-hover-color: ;
@@ -225,17 +249,18 @@ class ScrollBar(Widget):
 
     def render(self) -> RenderableType:
         styles = self.parent.styles
-        background = (
-            styles.scrollbar_background_hover
-            if self.mouse_over
-            else styles.scrollbar_background
-        )
-        color = (
-            styles.scrollbar_color_active if self.grabbed else styles.scrollbar_color
-        )
+        if self.grabbed:
+            background = styles.scrollbar_background_active
+            color = styles.scrollbar_color_active
+        elif self.mouse_over:
+            background = styles.scrollbar_background_hover
+            color = styles.scrollbar_color_hover
+        else:
+            background = styles.scrollbar_background
+            color = styles.scrollbar_color
         color = background + color
         scrollbar_style = Style.from_color(color.rich_color, background.rich_color)
-        return ScrollBarRender(
+        return self.renderer(
             virtual_size=self.window_virtual_size,
             window_size=(
                 self.window_size if self.window_size < self.window_virtual_size else 0
@@ -320,18 +345,3 @@ class ScrollBarCorner(Widget):
         styles = self.parent.styles
         color = styles.scrollbar_corner_color
         return Blank(color)
-
-
-if __name__ == "__main__":
-    from rich.console import Console
-
-    console = Console()
-
-    thickness = 2
-    console.print(f"Bars thickness: {thickness}")
-
-    console.print("Vertical bar:")
-    console.print(ScrollBarRender.render_bar(thickness=thickness))
-
-    console.print("Horizontal bar:")
-    console.print(ScrollBarRender.render_bar(vertical=False, thickness=thickness))

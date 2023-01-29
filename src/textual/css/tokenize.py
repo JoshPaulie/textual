@@ -49,7 +49,7 @@ expect_root_scope = Expect(
     selector_start_id=r"\#" + IDENTIFIER,
     selector_start_class=r"\." + IDENTIFIER,
     selector_start_universal=r"\*",
-    selector_start=r"[a-zA-Z_\-]+",
+    selector_start=IDENTIFIER,
     variable_name=rf"{VARIABLE_REF}:",
 ).expect_eof(True)
 
@@ -187,28 +187,13 @@ def tokenize_values(values: dict[str, str]) -> dict[str, list[Token]]:
     """Tokens the values in a dict of strings.
 
     Args:
-        values (dict[str, str]): A mapping of CSS variable name on to a value, to be
+        values: A mapping of CSS variable name on to a value, to be
             added to the CSS context.
 
     Returns:
-        dict[str, list[Token]]: A mapping of name on to a list of tokens,
+        A mapping of name on to a list of tokens,
     """
     value_tokens = {
         name: list(tokenize_value(value, "__name__")) for name, value in values.items()
     }
     return value_tokens
-
-
-if __name__ == "__main__":
-    from rich import print
-
-    css = """#something {
-
-        color: rgb(10,12,23)
-    }
-    """
-    # transition: offset 500 in_out_cubic;
-    tokens = tokenize(css, __name__)
-    print(list(tokens))
-
-    print(tokenize_values({"primary": "rgb(10,20,30)", "secondary": "#ff00ff"}))

@@ -1,28 +1,32 @@
 from __future__ import annotations
 
-import sys
 import inspect
-from typing import Callable, TYPE_CHECKING
 
 import rich.repr
 from rich.console import RenderableType
 
-__all__ = ["log", "panic"]
-
-
 from ._context import active_app
 from ._log import LogGroup, LogVerbosity
+from ._typing import TypeAlias
 
-if TYPE_CHECKING:
-    from .app import App
-
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:  # pragma: no cover
-    from typing_extensions import TypeAlias
+__all__ = ["log", "panic", "__version__"]  # type: ignore
 
 
 LogCallable: TypeAlias = "Callable"
+
+
+def __getattr__(name: str) -> str:
+    """Lazily get the version from whatever API is available."""
+    if name == "__version__":
+        try:
+            from importlib.metadata import version
+        except ImportError:
+            import pkg_resources
+
+            return pkg_resources.get_distribution("textual").version
+        else:
+            return version("textual")
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class LoggerError(Exception):
@@ -51,7 +55,9 @@ class Logger:
         try:
             app = active_app.get()
         except LookupError:
-            raise LoggerError("Unable to log without an active app.") from None
+            print_args = (*args, *[f"{key}={value!r}" for key, value in kwargs.items()])
+            print(*print_args)
+            return
         if app.devtools is None or not app.devtools.is_connected:
             return
 
@@ -76,10 +82,10 @@ class Logger:
         """Get a new logger with selective verbosity.
 
         Args:
-            verbose (bool): True to use HIGH verbosity, otherwise NORMAL.
+            verbose: True to use HIGH verbosity, otherwise NORMAL.
 
         Returns:
-            Logger: New logger.
+            New logger.
         """
         verbosity = LogVerbosity.HIGH if verbose else LogVerbosity.NORMAL
         return Logger(self._log, self._group, verbosity)

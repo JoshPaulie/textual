@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -27,6 +26,7 @@ from ._style_properties import (
     NameListProperty,
     NameProperty,
     OffsetProperty,
+    OverflowProperty,
     ScalarListProperty,
     ScalarProperty,
     SpacingProperty,
@@ -60,11 +60,7 @@ from .types import (
     Visibility,
     TextAlign,
 )
-
-if sys.version_info >= (3, 8):
-    from typing import TypedDict
-else:
-    from typing_extensions import TypedDict
+from .._typing import TypedDict
 
 if TYPE_CHECKING:
     from .._layout import Layout
@@ -214,12 +210,12 @@ class StylesBase(ABC):
     node: DOMNode | None = None
 
     display = StringEnumProperty(VALID_DISPLAY, "block", layout=True)
-    visibility = StringEnumProperty(VALID_VISIBILITY, "visible")
+    visibility = StringEnumProperty(VALID_VISIBILITY, "visible", layout=True)
     layout = LayoutProperty()
 
     auto_color = BooleanProperty(default=False)
     color = ColorProperty(Color(255, 255, 255))
-    background = ColorProperty(Color(0, 0, 0, 0), background=True)
+    background = ColorProperty(Color(0, 0, 0, 0))
     text_style = StyleFlagsProperty()
 
     opacity = FractionalProperty()
@@ -251,8 +247,8 @@ class StylesBase(ABC):
 
     dock = DockProperty()
 
-    overflow_x = StringEnumProperty(VALID_OVERFLOW, "hidden")
-    overflow_y = StringEnumProperty(VALID_OVERFLOW, "hidden")
+    overflow_x = OverflowProperty(VALID_OVERFLOW, "hidden")
+    overflow_y = OverflowProperty(VALID_OVERFLOW, "hidden")
 
     layer = NameProperty()
     layers = NameListProperty()
@@ -282,8 +278,8 @@ class StylesBase(ABC):
     content_align_vertical = StringEnumProperty(VALID_ALIGN_VERTICAL, "top")
     content_align = AlignProperty()
 
-    grid_rows = ScalarListProperty()
-    grid_columns = ScalarListProperty()
+    grid_rows = ScalarListProperty(percent_unit=Unit.HEIGHT)
+    grid_columns = ScalarListProperty(percent_unit=Unit.WIDTH)
 
     grid_size_columns = IntegerProperty(default=1, layout=True)
     grid_size_rows = IntegerProperty(default=0, layout=True)
@@ -305,6 +301,44 @@ class StylesBase(ABC):
     link_hover_background = ColorProperty("transparent")
     link_hover_style = StyleFlagsProperty()
 
+    def __textual_animation__(
+        self,
+        attribute: str,
+        start_value: object,
+        value: object,
+        start_time: float,
+        duration: float | None,
+        speed: float | None,
+        easing: EasingFunction,
+        on_complete: CallbackType | None = None,
+    ) -> ScalarAnimation | None:
+        if self.node is None:
+            return None
+
+        # Check we are animating a Scalar or Scalar offset
+        if isinstance(start_value, (Scalar, ScalarOffset)):
+
+            # If destination is a number, we can convert that to a scalar
+            if isinstance(value, (int, float)):
+                value = Scalar(value, Unit.CELLS, Unit.CELLS)
+
+            # We can only animate to Scalar
+            if not isinstance(value, (Scalar, ScalarOffset)):
+                return None
+
+            return ScalarAnimation(
+                self.node,
+                self,
+                start_time,
+                attribute,
+                value,
+                duration=duration,
+                speed=speed,
+                easing=easing,
+                on_complete=on_complete,
+            )
+        return None
+
     def __eq__(self, styles: object) -> bool:
         """Check that Styles contains the same rules."""
         if not isinstance(styles, StylesBase):
@@ -316,10 +350,9 @@ class StylesBase(ABC):
         """Get space around widget.
 
         Returns:
-            Spacing: Space around widget content.
+            Space around widget content.
         """
-        spacing = self.padding + self.border.spacing
-        return spacing
+        return self.padding + self.border.spacing
 
     @property
     def auto_dimensions(self) -> bool:
@@ -334,10 +367,10 @@ class StylesBase(ABC):
         """Check if a rule is set on this Styles object.
 
         Args:
-            rule (str): Rule name.
+            rule: Rule name.
 
         Returns:
-            bool: ``True`` if the rules is present, otherwise ``False``.
+            ``True`` if the rules is present, otherwise ``False``.
         """
 
     @abstractmethod
@@ -345,10 +378,10 @@ class StylesBase(ABC):
         """Removes the rule from the Styles object, as if it had never been set.
 
         Args:
-            rule (str): Rule name.
+            rule: Rule name.
 
         Returns:
-            bool: ``True`` if a rule was cleared, or ``False`` if the rule is already not set.
+            ``True`` if a rule was cleared, or ``False`` if the rule is already not set.
         """
 
     @abstractmethod
@@ -356,7 +389,7 @@ class StylesBase(ABC):
         """Get the rules in a mapping.
 
         Returns:
-            RulesMap: A TypedDict of the rules.
+            A TypedDict of the rules.
         """
 
     @abstractmethod
@@ -364,11 +397,11 @@ class StylesBase(ABC):
         """Set a rule.
 
         Args:
-            rule (str): Rule name.
-            value (object | None): New rule value.
+            rule: Rule name.
+            value: New rule value.
 
         Returns:
-            bool: ``True`` if the rule changed, otherwise ``False``.
+            ``True`` if the rule changed, otherwise ``False``.
         """
 
     @abstractmethod
@@ -376,11 +409,11 @@ class StylesBase(ABC):
         """Get an individual rule.
 
         Args:
-            rule (str): Name of rule.
-            default (object, optional): Default if rule does not exists. Defaults to None.
+            rule: Name of rule.
+            default: Default if rule does not exists. Defaults to None.
 
         Returns:
-            object: Rule value or default.
+            Rule value or default.
         """
 
     @abstractmethod
@@ -388,8 +421,8 @@ class StylesBase(ABC):
         """Mark the styles as requiring a refresh.
 
         Args:
-            layout (bool, optional): Also require a layout. Defaults to False.
-            children (bool, opional): Also refresh children. Defaults to False.
+            layout: Also require a layout. Defaults to False.
+            children: Also refresh children. Defaults to False.
         """
 
     @abstractmethod
@@ -401,7 +434,7 @@ class StylesBase(ABC):
         """Merge values from another Styles.
 
         Args:
-            other (Styles): A Styles object.
+            other: A Styles object.
         """
 
     @abstractmethod
@@ -409,7 +442,7 @@ class StylesBase(ABC):
         """Merge rules in to Styles.
 
         Args:
-            rules (RulesMap): A mapping of rules.
+            rules: A mapping of rules.
         """
 
     def get_render_rules(self) -> RulesMap:
@@ -423,10 +456,10 @@ class StylesBase(ABC):
         """Check if a given rule may be animated.
 
         Args:
-            rule (str): Name of the rule.
+            rule: Name of the rule.
 
         Returns:
-            bool: ``True`` if the rule may be animated, otherwise ``False``.
+            ``True`` if the rule may be animated, otherwise ``False``.
         """
         return rule in cls.ANIMATABLE
 
@@ -436,12 +469,12 @@ class StylesBase(ABC):
         """Parse CSS and return a Styles object.
 
         Args:
-            css (str): Textual CSS.
-            path (str): Path or string indicating source of CSS.
-            node (DOMNode, optional): Node to associate with the Styles. Defaults to None.
+            css: Textual CSS.
+            path: Path or string indicating source of CSS.
+            node: Node to associate with the Styles. Defaults to None.
 
         Returns:
-            Styles: A Styles instance containing result of parsing CSS.
+            A Styles instance containing result of parsing CSS.
         """
         from .parse import parse_declarations
 
@@ -453,10 +486,10 @@ class StylesBase(ABC):
         """Get a transition.
 
         Args:
-            key (str): Transition key.
+            key: Transition key.
 
         Returns:
-            Transition | None: Transition object or None it no transition exists.
+            Transition object or None it no transition exists.
         """
         if key in self.ANIMATABLE:
             return self.transitions.get(key, None)
@@ -467,11 +500,11 @@ class StylesBase(ABC):
         """Align the width dimension.
 
         Args:
-            width (int): Width of the content.
-            parent_width (int): Width of the parent container.
+            width: Width of the content.
+            parent_width: Width of the parent container.
 
         Returns:
-            int: An offset to add to the X coordinate.
+            An offset to add to the X coordinate.
         """
         offset_x = 0
         align_horizontal = self.align_horizontal
@@ -486,11 +519,11 @@ class StylesBase(ABC):
         """Align the height dimensions
 
         Args:
-            height (int): Height of the content.
-            parent_height (int): Height of the parent container.
+            height: Height of the content.
+            parent_height: Height of the parent container.
 
         Returns:
-            int: An offset to add to the Y coordinate.
+            An offset to add to the Y coordinate.
         """
         offset_y = 0
         align_vertical = self.align_vertical
@@ -505,11 +538,11 @@ class StylesBase(ABC):
         """Align a size according to alignment rules.
 
         Args:
-            child (tuple[int, int]): The size of the child (width, height)
-            parent (tuple[int, int]): The size of the parent (width, height)
+            child: The size of the child (width, height)
+            parent: The size of the parent (width, height)
 
         Returns:
-            Offset: Offset required to align the child.
+            Offset required to align the child.
         """
         width, height = child
         parent_width, parent_height = parent
@@ -518,12 +551,29 @@ class StylesBase(ABC):
             self._align_height(height, parent_height),
         )
 
+    @property
+    def partial_rich_style(self) -> Style:
+        """Get the style properties associated with this node only (not including parents in the DOM).
+
+        Returns:
+            Rich Style object.
+        """
+        style = Style(
+            color=(self.color.rich_color if self.has_rule("color") else None),
+            bgcolor=(
+                self.background.rich_color if self.has_rule("background") else None
+            ),
+        )
+        style += self.text_style
+        return style
+
 
 @rich.repr.auto
 @dataclass
 class Styles(StylesBase):
     node: DOMNode | None = None
     _rules: RulesMap = field(default_factory=dict)
+    _updates: int = 0
 
     important: set[str] = field(default_factory=set)
 
@@ -539,12 +589,15 @@ class Styles(StylesBase):
         """Removes the rule from the Styles object, as if it had never been set.
 
         Args:
-            rule (str): Rule name.
+            rule: Rule name.
 
         Returns:
-            bool: ``True`` if a rule was cleared, or ``False`` if it was already not set.
+            ``True`` if a rule was cleared, or ``False`` if it was already not set.
         """
-        return self._rules.pop(rule, None) is not None
+        changed = self._rules.pop(rule, None) is not None
+        if changed:
+            self._updates += 1
+        return changed
 
     def get_rules(self) -> RulesMap:
         return self._rules.copy()
@@ -553,18 +606,23 @@ class Styles(StylesBase):
         """Set a rule.
 
         Args:
-            rule (str): Rule name.
-            value (object | None): New rule value.
+            rule: Rule name.
+            value: New rule value.
 
         Returns:
-            bool: ``True`` if the rule changed, otherwise ``False``.
+            ``True`` if the rule changed, otherwise ``False``.
         """
         if value is None:
-            return self._rules.pop(rule, None) is not None
-        else:
-            current = self._rules.get(rule)
-            self._rules[rule] = value
-            return current != value
+            changed = self._rules.pop(rule, None) is not None
+            if changed:
+                self._updates += 1
+            return changed
+        current = self._rules.get(rule)
+        self._rules[rule] = value
+        changed = current != value
+        if changed:
+            self._updates += 1
+        return changed
 
     def get_rule(self, rule: str, default: object = None) -> object:
         return self._rules.get(rule, default)
@@ -578,18 +636,20 @@ class Styles(StylesBase):
 
     def reset(self) -> None:
         """Reset the rules to initial state."""
+        self._updates += 1
         self._rules.clear()
 
     def merge(self, other: Styles) -> None:
         """Merge values from another Styles.
 
         Args:
-            other (Styles): A Styles object.
+            other: A Styles object.
         """
-
+        self._updates += 1
         self._rules.update(other._rules)
 
     def merge_rules(self, rules: RulesMap) -> None:
+        self._updates += 1
         self._rules.update(rules)
 
     def extract_rules(
@@ -602,12 +662,12 @@ class Styles(StylesBase):
         well as higher specificity of user CSS vs widget CSS.
 
         Args:
-            specificity (Specificity3): A node specificity.
-            is_default_rules (bool): True if the rules we're extracting are
+            specificity: A node specificity.
+            is_default_rules: True if the rules we're extracting are
                 default (i.e. in Widget.DEFAULT_CSS) rules. False if they're from user defined CSS.
 
         Returns:
-            list[tuple[str, Specificity6, Any]]]: A list containing a tuple of <RULE NAME>, <SPECIFICITY> <RULE VALUE>.
+            A list containing a tuple of <RULE NAME>, <SPECIFICITY> <RULE VALUE>.
         """
         is_important = self.important.__contains__
         rules = [
@@ -633,41 +693,17 @@ class Styles(StylesBase):
         if self.important:
             yield "important", self.important
 
-    def __textual_animation__(
-        self,
-        attribute: str,
-        value: Any,
-        start_time: float,
-        duration: float | None,
-        speed: float | None,
-        easing: EasingFunction,
-        on_complete: CallbackType | None = None,
-    ) -> ScalarAnimation | None:
-        if isinstance(value, ScalarOffset):
-            return ScalarAnimation(
-                self.node,
-                self,
-                start_time,
-                attribute,
-                value,
-                duration=duration,
-                speed=speed,
-                easing=easing,
-                on_complete=on_complete,
-            )
-        return None
-
     def _get_border_css_lines(
         self, rules: RulesMap, name: str
     ) -> Iterable[tuple[str, str]]:
         """Get pairs of strings containing <RULE NAME>, <RULE VALUE> for border css declarations.
 
         Args:
-            rules (RulesMap): A rules map.
-            name (str): Name of rules (border or outline)
+            rules: A rules map.
+            name: Name of rules (border or outline)
 
         Returns:
-            Iterable[tuple[str, str]]: An iterable of CSS declarations.
+            An iterable of CSS declarations.
 
         """
 
@@ -921,6 +957,18 @@ class RenderStyles(StylesBase):
         self._base_styles = base
         self._inline_styles = inline_styles
         self._animate: BoundAnimator | None = None
+        self._updates: int = 0
+        self._rich_style: tuple[int, Style] | None = None
+        self._gutter: tuple[int, Spacing] | None = None
+
+    @property
+    def _cache_key(self) -> int:
+        """A key key, that changes when any style is changed.
+
+        Returns:
+            An opaque integer.
+        """
+        return self._updates + self._base_styles._updates + self._inline_styles._updates
 
     @property
     def base(self) -> Styles:
@@ -938,10 +986,26 @@ class RenderStyles(StylesBase):
         assert self.node is not None
         return self.node.rich_style
 
+    @property
+    def gutter(self) -> Spacing:
+        """Get space around widget.
+
+        Returns:
+            Space around widget content.
+        """
+        # This is (surprisingly) a bit of a bottleneck
+        if self._gutter is not None:
+            cache_key, gutter = self._gutter
+            if cache_key == self._cache_key:
+                return gutter
+        gutter = self.padding + self.border.spacing
+        self._gutter = (self._cache_key, gutter)
+        return gutter
+
     def animate(
         self,
         attribute: str,
-        value: float | Animatable,
+        value: str | float | Animatable,
         *,
         final_value: object = ...,
         duration: float | None = None,
@@ -953,17 +1017,18 @@ class RenderStyles(StylesBase):
         """Animate an attribute.
 
         Args:
-            attribute (str): Name of the attribute to animate.
-            value (float | Animatable): The value to animate to.
-            final_value (object, optional): The final value of the animation. Defaults to `value` if not set.
-            duration (float | None, optional): The duration of the animate. Defaults to None.
-            speed (float | None, optional): The speed of the animation. Defaults to None.
-            delay (float, optional): A delay (in seconds) before the animation starts. Defaults to 0.0.
-            easing (EasingFunction | str, optional): An easing method. Defaults to "in_out_cubic".
-            on_complete (CallbackType | None, optional): A callable to invoke when the animation is finished. Defaults to None.
+            attribute: Name of the attribute to animate.
+            value: The value to animate to.
+            final_value: The final value of the animation. Defaults to `value` if not set.
+            duration: The duration of the animate. Defaults to None.
+            speed: The speed of the animation. Defaults to None.
+            delay: A delay (in seconds) before the animation starts. Defaults to 0.0.
+            easing: An easing method. Defaults to "in_out_cubic".
+            on_complete: A callable to invoke when the animation is finished. Defaults to None.
 
         """
         if self._animate is None:
+            assert self.node is not None
             self._animate = self.node.app.animator.bind(self)
         assert self._animate is not None
         self._animate(
@@ -989,22 +1054,25 @@ class RenderStyles(StylesBase):
         """Merge values from another Styles.
 
         Args:
-            other (Styles): A Styles object.
+            other: A Styles object.
         """
         self._inline_styles.merge(other)
 
     def merge_rules(self, rules: RulesMap) -> None:
         self._inline_styles.merge_rules(rules)
+        self._updates += 1
 
     def reset(self) -> None:
         """Reset the rules to initial state."""
         self._inline_styles.reset()
+        self._updates += 1
 
     def has_rule(self, rule: str) -> bool:
         """Check if a rule has been set."""
         return self._inline_styles.has_rule(rule) or self._base_styles.has_rule(rule)
 
     def set_rule(self, rule: str, value: object | None) -> bool:
+        self._updates += 1
         return self._inline_styles.set_rule(rule, value)
 
     def get_rule(self, rule: str, default: object = None) -> object:
@@ -1014,6 +1082,7 @@ class RenderStyles(StylesBase):
 
     def clear_rule(self, rule_name: str) -> bool:
         """Clear a rule (from inline)."""
+        self._updates += 1
         return self._inline_styles.clear_rule(rule_name)
 
     def get_rules(self) -> RulesMap:
@@ -1029,25 +1098,3 @@ class RenderStyles(StylesBase):
         styles.merge(self._inline_styles)
         combined_css = styles.css
         return combined_css
-
-
-if __name__ == "__main__":
-    styles = Styles()
-
-    styles.display = "none"
-    styles.visibility = "hidden"
-    styles.border = ("solid", "rgb(10,20,30)")
-    styles.outline_right = ("solid", "red")
-    styles.text_style = "italic"
-    styles.dock = "bar"
-    styles.layers = "foo bar"
-
-    from rich import print
-
-    print(styles.text_style)
-    print(styles.text)
-
-    print(styles)
-    print(styles.css)
-
-    print(styles.extract_rules((0, 1, 0)))

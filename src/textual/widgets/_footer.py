@@ -7,13 +7,14 @@ from rich.console import RenderableType
 from rich.text import Text
 
 from .. import events
+from ..keys import _get_key_display
 from ..reactive import Reactive, watch
 from ..widget import Widget
 
 
 @rich.repr.auto
 class Footer(Widget):
-    """A simple header widget which docks itself to the top of the parent container."""
+    """A simple footer widget which docks itself to the bottom of the parent container."""
 
     DEFAULT_CSS = """
     Footer {
@@ -54,6 +55,7 @@ class Footer(Widget):
     async def watch_highlight_key(self, value) -> None:
         """If highlight key changes we need to regenerate the text."""
         self._key_text = None
+        self.refresh()
 
     def on_mount(self) -> None:
         watch(self.screen, "focused", self._focus_changed)
@@ -99,11 +101,12 @@ class Footer(Widget):
 
         for action, bindings in action_to_bindings.items():
             binding = bindings[0]
-            key_display = (
-                binding.key.upper()
-                if binding.key_display is None
-                else binding.key_display
-            )
+            if binding.key_display is None:
+                key_display = self.app.get_key_display(binding.key)
+                if key_display is None:
+                    key_display = binding.key.upper()
+            else:
+                key_display = binding.key_display
             hovered = self.highlight_key == binding.key
             key_text = Text.assemble(
                 (f" {key_display} ", highlight_key_style if hovered else key_style),
@@ -118,6 +121,10 @@ class Footer(Widget):
             )
             text.append_text(key_text)
         return text
+
+    def _on_styles_updated(self) -> None:
+        self._key_text = None
+        self.refresh()
 
     def post_render(self, renderable):
         return renderable

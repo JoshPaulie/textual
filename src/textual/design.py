@@ -96,13 +96,13 @@ class ColorSystem:
         """Generate a mapping of color name on to a CSS color.
 
         Args:
-            dark (bool, optional): Enable dark mode. Defaults to False.
-            luminosity_spread (float, optional): Amount of luminosity to subtract and add to generate
+            dark: Enable dark mode. Defaults to False.
+            luminosity_spread: Amount of luminosity to subtract and add to generate
                 shades. Defaults to 0.2.
-            text_alpha (float, optional): Alpha value for text. Defaults to 0.9.
+            text_alpha: Alpha value for text. Defaults to 0.9.
 
         Returns:
-            dict[str, str]: A mapping of color name on to a CSS-style encoded color
+            A mapping of color name on to a CSS-style encoded color
 
         """
 
@@ -198,11 +198,11 @@ def show_design(light: ColorSystem, dark: ColorSystem) -> Table:
     """Generate a renderable to show color systems.
 
     Args:
-        light (ColorSystem): Light ColorSystem.
-        dark (ColorSystem): Dark ColorSystem
+        light: Light ColorSystem.
+        dark: Dark ColorSystem
 
     Returns:
-        Table: Table showing all colors.
+        Table showing all colors.
 
     """
 
@@ -213,7 +213,7 @@ def show_design(light: ColorSystem, dark: ColorSystem) -> Table:
             background = Color.parse(colors[name]).with_alpha(1.0)
             foreground = background + background.get_contrast_text(0.9)
 
-            text = Text(name)
+            text = Text(f"${name}")
 
             yield Padding(text, 1, style=f"{foreground.hex6} on {background.hex6}")
 
@@ -222,11 +222,3 @@ def show_design(light: ColorSystem, dark: ColorSystem) -> Table:
     table.add_column("Dark", justify="center")
     table.add_row(make_shades(light), make_shades(dark))
     return table
-
-
-if __name__ == "__main__":
-    from .app import DEFAULT_COLORS
-
-    from rich import print
-
-    print(show_design(DEFAULT_COLORS["light"], DEFAULT_COLORS["dark"]))

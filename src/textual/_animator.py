@@ -5,7 +5,7 @@ import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Callable, TypeVar, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 from . import _clock
 from ._callback import invoke
@@ -21,7 +21,15 @@ else:  # pragma: no cover
 if TYPE_CHECKING:
     from textual.app import App
 
+    AnimationKey = tuple[int, str]
+    """Animation keys are the id of the object and the attribute being animated."""
+
 EasingFunction = Callable[[float], float]
+
+
+class AnimationError(Exception):
+    """An issue prevented animation from starting."""
+
 
 T = TypeVar("T")
 
@@ -41,10 +49,10 @@ class Animation(ABC):
         """Call the animation, return a boolean indicating whether animation is in-progress or complete.
 
         Args:
-            time (float): The current timestamp
+            time: The current timestamp
 
         Returns:
-            bool: True if the animation has finished, otherwise False.
+            True if the animation has finished, otherwise False.
         """
         raise NotImplementedError("")
 
@@ -118,7 +126,7 @@ class BoundAnimator:
     def __call__(
         self,
         attribute: str,
-        value: float | Animatable,
+        value: str | float | Animatable,
         *,
         final_value: object = ...,
         duration: float | None = None,
@@ -130,16 +138,22 @@ class BoundAnimator:
         """Animate an attribute.
 
         Args:
-            attribute (str): Name of the attribute to animate.
-            value (float | Animatable): The value to animate to.
-            final_value (object, optional): The final value of the animation. Defaults to `value` if not set.
-            duration (float | None, optional): The duration of the animate. Defaults to None.
-            speed (float | None, optional): The speed of the animation. Defaults to None.
-            delay (float, optional): A delay (in seconds) before the animation starts. Defaults to 0.0.
-            easing (EasingFunction | str, optional): An easing method. Defaults to "in_out_cubic".
-            on_complete (CallbackType | None, optional): A callable to invoke when the animation is finished. Defaults to None.
+            attribute: Name of the attribute to animate.
+            value: The value to animate to.
+            final_value: The final value of the animation. Defaults to `value` if not set.
+            duration: The duration of the animate. Defaults to None.
+            speed: The speed of the animation. Defaults to None.
+            delay: A delay (in seconds) before the animation starts. Defaults to 0.0.
+            easing: An easing method. Defaults to "in_out_cubic".
+            on_complete: A callable to invoke when the animation is finished. Defaults to None.
 
         """
+        start_value = getattr(self._obj, attribute)
+        if isinstance(value, str) and hasattr(start_value, "parse"):
+            # Color and Scalar have a parse method
+            # I'm exploiting a coincidence here, but I think this should be a first-class concept
+            # TODO: add a `Parsable` protocol
+            value = start_value.parse(value)
         easing_function = EASING[easing] if isinstance(easing, str) else easing
         return self._animator.animate(
             self._obj,
@@ -155,10 +169,19 @@ class BoundAnimator:
 
 
 class Animator:
-    """An object to manage updates to a given attribute over a period of time."""
+    """An object to manage updates to a given attribute over a period of time.
+
+    Attrs:
+        _animations: Dictionary that maps animation keys to the corresponding animation
+            instances.
+        _scheduled: Keys corresponding to animations that have been scheduled but not yet
+            started.
+        app: The app that owns the animator object.
+    """
 
     def __init__(self, app: App, frames_per_second: int = 60) -> None:
-        self._animations: dict[tuple[object, str], Animation] = {}
+        self._animations: dict[AnimationKey, Animation] = {}
+        self._scheduled: set[AnimationKey] = set()
         self.app = app
         self._timer = Timer(
             app,
@@ -168,11 +191,15 @@ class Animator:
             callback=self,
             pause=True,
         )
+        # Flag if no animations are currently taking place.
         self._idle_event = asyncio.Event()
+        # Flag if no animations are currently taking place and none are scheduled.
+        self._complete_event = asyncio.Event()
 
     async def start(self) -> None:
         """Start the animator task."""
         self._idle_event.set()
+        self._complete_event.set()
         self._timer.start()
 
     async def stop(self) -> None:
@@ -181,10 +208,18 @@ class Animator:
             await self._timer.stop()
         except asyncio.CancelledError:
             pass
+        finally:
+            self._idle_event.set()
+            self._complete_event.set()
 
     def bind(self, obj: object) -> BoundAnimator:
-        """Bind the animator to a given objects."""
+        """Bind the animator to a given object."""
         return BoundAnimator(self, obj)
+
+    def is_being_animated(self, obj: object, attribute: str) -> bool:
+        """Does the object/attribute pair have an ongoing or scheduled animation?"""
+        key = (id(obj), attribute)
+        return key in self._animations or key in self._scheduled
 
     def animate(
         self,
@@ -202,15 +237,15 @@ class Animator:
         """Animate an attribute to a new value.
 
         Args:
-            obj (object): The object containing the attribute.
-            attribute (str): The name of the attribute.
-            value (Any): The destination value of the attribute.
-            final_value (Any, optional): The final value, or ellipsis if it is the same as ``value``. Defaults to Ellipsis/
-            duration (float | None, optional): The duration of the animation, or ``None`` to use speed. Defaults to ``None``.
-            speed (float | None, optional): The speed of the animation. Defaults to None.
-            easing (EasingFunction | str, optional): An easing function. Defaults to DEFAULT_EASING.
-            delay (float, optional): Number of seconds to delay the start of the animation by. Defaults to 0.
-            on_complete (CallbackType | None, optional): Callback to run after the animation completes.
+            obj: The object containing the attribute.
+            attribute: The name of the attribute.
+            value: The destination value of the attribute.
+            final_value: The final value, or ellipsis if it is the same as ``value``. Defaults to Ellipsis/
+            duration: The duration of the animation, or ``None`` to use speed. Defaults to ``None``.
+            speed: The speed of the animation. Defaults to None.
+            easing: An easing function. Defaults to DEFAULT_EASING.
+            delay: Number of seconds to delay the start of the animation by. Defaults to 0.
+            on_complete: Callback to run after the animation completes.
         """
         animate_callback = partial(
             self._animate,
@@ -224,6 +259,8 @@ class Animator:
             on_complete=on_complete,
         )
         if delay:
+            self._scheduled.add((id(obj), attribute))
+            self._complete_event.clear()
             self.app.set_timer(delay, animate_callback)
         else:
             animate_callback()
@@ -243,14 +280,14 @@ class Animator:
         """Animate an attribute to a new value.
 
         Args:
-            obj (object): The object containing the attribute.
-            attribute (str): The name of the attribute.
-            value (Any): The destination value of the attribute.
-            final_value (Any, optional): The final value, or ellipsis if it is the same as ``value``. Defaults to ....
-            duration (float | None, optional): The duration of the animation, or ``None`` to use speed. Defaults to ``None``.
-            speed (float | None, optional): The speed of the animation. Defaults to None.
-            easing (EasingFunction | str, optional): An easing function. Defaults to DEFAULT_EASING.
-            on_complete (CallbackType | None, optional): Callback to run after the animation completes.
+            obj: The object containing the attribute.
+            attribute: The name of the attribute.
+            value: The destination value of the attribute.
+            final_value: The final value, or ellipsis if it is the same as ``value``. Defaults to ....
+            duration: The duration of the animation, or ``None`` to use speed. Defaults to ``None``.
+            speed: The speed of the animation. Defaults to None.
+            easing: An easing function. Defaults to DEFAULT_EASING.
+            on_complete: Callback to run after the animation completes.
         """
         if not hasattr(obj, attribute):
             raise AttributeError(
@@ -260,19 +297,22 @@ class Animator:
             duration is None and speed is not None
         ), "An Animation should have a duration OR a speed"
 
+        animation_key = (id(obj), attribute)
+        self._scheduled.discard(animation_key)
+
         if final_value is ...:
             final_value = value
 
         start_time = self._get_time()
 
-        animation_key = (id(obj), attribute)
-
         easing_function = EASING[easing] if isinstance(easing, str) else easing
 
         animation: Animation | None = None
+
         if hasattr(obj, "__textual_animation__"):
             animation = getattr(obj, "__textual_animation__")(
                 attribute,
+                getattr(obj, attribute),
                 value,
                 start_time,
                 duration=duration,
@@ -280,7 +320,17 @@ class Animator:
                 easing=easing_function,
                 on_complete=on_complete,
             )
+
         if animation is None:
+
+            if not isinstance(value, (int, float)) and not isinstance(
+                value, Animatable
+            ):
+                raise AnimationError(
+                    f"Don't know how to animate {value!r}; "
+                    "Can only animate <int>, <float>, or objects with a blend method"
+                )
+
             start_value = getattr(obj, attribute)
 
             if start_value == value:
@@ -317,11 +367,14 @@ class Animator:
         self._animations[animation_key] = animation
         self._timer.resume()
         self._idle_event.clear()
+        self._complete_event.clear()
 
     async def __call__(self) -> None:
         if not self._animations:
             self._timer.pause()
             self._idle_event.set()
+            if not self._scheduled:
+                self._complete_event.set()
         else:
             animation_time = self._get_time()
             animation_keys = list(self._animations.keys())
@@ -343,3 +396,7 @@ class Animator:
     async def wait_for_idle(self) -> None:
         """Wait for any animations to complete."""
         await self._idle_event.wait()
+
+    async def wait_until_complete(self) -> None:
+        """Wait for any current and scheduled animations to complete."""
+        await self._complete_event.wait()

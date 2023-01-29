@@ -4,11 +4,29 @@ import typing
 
 from ..case import camel_to_snake
 
+# ⚠️For any new built-in Widget we create, not only do we have to import them here and add them to `__all__`,
+# but also to the `__init__.pyi` file in this same folder - otherwise text editors and type checkers won't
+# be able to "see" them.
 if typing.TYPE_CHECKING:
+    from ._button import Button
+    from ._checkbox import Checkbox
+    from ._data_table import DataTable
+    from ._directory_tree import DirectoryTree
+    from ._footer import Footer
+    from ._header import Header
+    from ._input import Input
+    from ._label import Label
+    from ._list_item import ListItem
+    from ._list_view import ListView
+    from ._placeholder import Placeholder
+    from ._pretty import Pretty
+    from ._static import Static
+    from ._text_log import TextLog
+    from ._tree import Tree
+    from ._welcome import Welcome
     from ..widget import Widget
 
-# ⚠️For any new built-in Widget we create, not only we have to add them to the following list, but also to the
-# `__init__.pyi` file in this same folder - otherwise text editors and type checkers won't be able to "see" them.
+
 __all__ = [
     "Button",
     "Checkbox",
@@ -16,12 +34,15 @@ __all__ = [
     "DirectoryTree",
     "Footer",
     "Header",
+    "Input",
+    "Label",
+    "ListItem",
+    "ListView",
     "Placeholder",
     "Pretty",
     "Static",
-    "Input",
     "TextLog",
-    "TreeControl",
+    "Tree",
     "Welcome",
 ]
 
